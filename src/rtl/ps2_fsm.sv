@@ -22,9 +22,9 @@ module ps2_fsm (
 
 typedef enum logic [3:0] {
   INHIBIT,
-  RX_IDLE, DT_SAMPLE, RX_WAIT, RX_DONE, PERR,
+  RX_IDLE, DT_SAMPLE, RX_WAIT, RX_DONE,
   GEN_RQST, TX_IDLE, GEN_DBIT, GEN_PARITY, GEN_STOP, DT_SAMPLE_ACK, TX_DONE,
-  FERR, CLK_TO, RQST_TO
+  FERR, PERR, CLK_TO, RQST_TO
 } state_t;
 
 state_t state, next_state;
@@ -49,34 +49,6 @@ always_ff @(posedge clk, negedge rst_n)
 //      next_state = !status.ps2_clk_negedge ? RX_IDLE : DT_SAMPLE;
 //
 
-function automatic logic rx_break_pattern_state (
-  input logic en, input logic tx_rqst,
-  output state_t state_to
-);
-
-  if (!en)
-    state_to = INHIBIT;
-  else if (tx_rqst)
-    state_to = GEN_RQST;
-  else
-    state_to = state_t'('x);
-
-  return !en | tx_rqst; // true if jumped (state_to is assigned)
-endfunction
-
-function automatic logic tx_break_pattern_state (
-  input logic en,
-  output state_t state_to
-);
-
-  if (!en)
-    state_to = INHIBIT;
-  else
-    state_to = state_t'('x);
-
-  return !en; // true if jumped (state_to is assigned)
-endfunction
-
 always_comb begin
   case (state)
     INHIBIT:
@@ -87,78 +59,91 @@ always_comb begin
       else
         next_state = RX_IDLE;
 
-    RX_IDLE:
-      if (!rx_break_pattern_state(en, tx_rqst, next_state))
-        next_state = !status.ps2_clk_negedge ? RX_IDLE : DT_SAMPLE;
+    RX_IDLE, DT_SAMPLE, RX_WAIT, RX_DONE:
+      // rx break pattern -->
+      if (!en)
+        next_state = INHIBIT;
+      else if (tx_rqst)
+        next_state = GEN_RQST;
+      // <--
 
-    DT_SAMPLE:
-      if (!rx_break_pattern_state(en, tx_rqst, next_state))
-        if (!status.tim_tc)
-          next_state = DT_SAMPLE;
-        else if (status.rx_ferr)
-          next_state = FERR;
-        else if (status.perr)
-          next_state = PERR;
-        else if (!status.bitcnt_10)
-          next_state = RX_WAIT;
-        else
-          next_state = RX_DONE;
+      else begin
+        unique case (state)
+          RX_IDLE:
+            next_state = !status.ps2_clk_negedge ? RX_IDLE : DT_SAMPLE;
 
-    RX_WAIT:
-      if (!rx_break_pattern_state(en, tx_rqst, next_state))
-        if (status.ps2_clk_negedge)
-          next_state = DT_SAMPLE;
-        else if (!status.tim_tc)
-          next_state = RX_WAIT;
-        else
-          next_state = CLK_TO;
+          DT_SAMPLE:
+            if (!status.tim_tc)
+              next_state = DT_SAMPLE;
+            else if (status.rx_ferr)
+              next_state = FERR;
+            else if (status.perr)
+              next_state = PERR;
+            else if (!status.bitcnt_10)
+              next_state = RX_WAIT;
+            else
+              next_state = RX_DONE;
 
-    RX_DONE:
-      if (!rx_break_pattern_state(en, tx_rqst, next_state))
-        next_state = RX_IDLE;
+          RX_WAIT:
+            if (status.ps2_clk_negedge)
+              next_state = DT_SAMPLE;
+            else if (!status.tim_tc)
+              next_state = RX_WAIT;
+            else
+              next_state = CLK_TO;
 
-    PERR:
-      next_state = en ? PERR : INHIBIT;
+          RX_DONE:
+            next_state = RX_IDLE;
+        endcase
+      end
 
-    GEN_RQST:
-      if (!tx_break_pattern_state(en, next_state))
-        next_state = !status.tim_tc ? GEN_RQST : TX_IDLE;
+    GEN_RQST, TX_IDLE, GEN_DBIT, GEN_PARITY, GEN_STOP, DT_SAMPLE_ACK, TX_DONE:
+      // tx break pattern -->
+      if (!en)
+        next_state = INHIBIT;
+      // <--
 
-    TX_IDLE:
-      if (!tx_break_pattern_state(en, next_state))
-        if (!status.ps2_clk_negedge)
-          if (status.bitcnt_1)
-            next_state = !status.tim_tc ? TX_IDLE : RQST_TO;
-          else
-            next_state = !status.tim_tc ? TX_IDLE : CLK_TO;
-        else if (status.bitcnt_11)
-          next_state = DT_SAMPLE_ACK;
-        else if (status.bitcnt_10)
-          next_state = GEN_STOP;
-        else if (status.bitcnt_9)
-          next_state = GEN_PARITY;
-        else
-          next_state = GEN_DBIT;
+      else begin
+        unique case (state)
+          GEN_RQST:
+              next_state = !status.tim_tc ? GEN_RQST : TX_IDLE;
 
-    GEN_DBIT, GEN_PARITY, GEN_STOP:
-      if (!tx_break_pattern_state(en, next_state))
-        next_state = TX_IDLE;
+          TX_IDLE:
+            if (!status.ps2_clk_negedge)
+              if (status.bitcnt_1)
+                next_state = !status.tim_tc ? TX_IDLE : RQST_TO;
+              else
+                next_state = !status.tim_tc ? TX_IDLE : CLK_TO;
+            else if (status.bitcnt_11)
+              next_state = DT_SAMPLE_ACK;
+            else if (status.bitcnt_10)
+              next_state = GEN_STOP;
+            else if (status.bitcnt_9)
+              next_state = GEN_PARITY;
+            else
+              next_state = GEN_DBIT;
 
-    DT_SAMPLE_ACK:
-      if (!tx_break_pattern_state(en, next_state))
-        if (!status.tim_tc)
-          next_state = DT_SAMPLE_ACK;
-        else if (status.ps2_dat)
-          next_state = FERR;
-        else
-          next_state = TX_DONE;
+          GEN_DBIT, GEN_PARITY, GEN_STOP:
+            next_state = TX_IDLE;
 
-    TX_DONE:
-      if (!tx_break_pattern_state(en, next_state))
-        next_state = tx_rqst ? TX_DONE : INHIBIT;
+          DT_SAMPLE_ACK:
+            if (!status.tim_tc)
+              next_state = DT_SAMPLE_ACK;
+            else if (status.ps2_dat)
+              next_state = FERR;
+            else
+              next_state = TX_DONE;
+
+          TX_DONE:
+            next_state = tx_rqst ? TX_DONE : INHIBIT;
+        endcase
+      end
 
     FERR:
       next_state = en ? FERR : INHIBIT;
+
+    PERR:
+      next_state = en ? PERR : INHIBIT;
 
     CLK_TO:
       next_state = en ? CLK_TO : INHIBIT;
