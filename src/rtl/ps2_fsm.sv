@@ -225,6 +225,8 @@ always_comb begin
           ctrl.shreg_shift_load_n = '1;
           ctrl.pbit_mux = 2'b10;
         end
+        if (status.bitcnt_10)
+          ctrl.idreg_clk_en = '1;
       end
     end
 
@@ -240,7 +242,6 @@ always_comb begin
 
     RX_DONE: begin
       valid = '1;
-      ctrl.idreg_clk_en = '1;
 
       // mealy
       // workaround for void'() cast
