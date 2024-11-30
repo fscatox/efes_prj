@@ -51,25 +51,25 @@ initial begin : host_logic_p
   #5;
 
   // Reset the controller (asynch)
-  rst_n = '0;
+  rst_n <= '0;
   #(tclk/2);
 
   // Keep the bus inhibited for some clock cycles
-  rst_n = '1;
-  #(2*tclk);
+  rst_n <= '1;
+  repeat (2)
+    @(posedge clk);
 
   forever begin
 
     // Receive 10 characters
     repeat(10) begin
-      en = 1;
+      en <= '1;
       @(posedge valid);
       @(posedge clk);
       if (~|flags)
         log("Host", $sformatf("rx_data = '0b%b'", rx_data));
-      else begin
-        log("host", $sformatf("Rx failed: %s", flagsToStr(flags)));
-      end
+      else
+        log("Host", $sformatf("Rx failed: %s", flagsToStr(flags)), 1);
     end
 
     // While receiving another character
@@ -93,7 +93,7 @@ initial begin : host_logic_p
     if (~|flags)
       log("Host", "Tx done");
     else
-      log("Host", $sformatf("Tx failed: %s", flagsToStr(flags)));
+      log("Host", $sformatf("Tx failed: %s", flagsToStr(flags)), 1);
 
     // Request a new transmission
     tx_data <= lfsr_range(2**$size(tx_data)-1);
@@ -108,19 +108,17 @@ initial begin : host_logic_p
     if (~|flags)
       log("Host", "Tx done");
     else
-      log("Host", $sformatf("Tx failed: %s", flagsToStr(flags)));
+      log("Host", $sformatf("Tx failed: %s", flagsToStr(flags)), 1);
 
     // After some time, unblock and repeat
     # 1ms;
     tx_rqst <= '0;
-
   end
-
 end : host_logic_p
 
 initial begin
   dev = new(ps2_bus.dev, dt_clk);
-  dev.run();
+  dev.run(Ps2Device::NOERR);
 end
 
 endmodule

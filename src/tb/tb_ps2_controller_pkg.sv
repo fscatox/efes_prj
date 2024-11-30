@@ -48,8 +48,10 @@ package tb_ps2_controller_pkg;
   // Logging utilities
   //
 
-  function automatic void log(string who, string what);
+  function automatic void log(string who, string what, bit stop = 0);
     $display("[%0t] [%s] %s", $time, who, what);
+    if (stop)
+      $stop;
   endfunction
 
   function automatic string flagsToStr(ps2_pkg::flags_t flags);
@@ -64,6 +66,7 @@ package tb_ps2_controller_pkg;
   //
   // Device model
   // See: IBM PS/2 Reference Manuals, Keyboard/Auxiliary Device Controller, 1990
+  // Available: http://www.mcamafia.de/pdf/pdfref.htm
   //
 
   class Ps2Device;
@@ -72,7 +75,20 @@ package tb_ps2_controller_pkg;
     const time ts; // from data transition to falling edge
     const time dt; // clock shift
 
+    const time tclk_to;
+    const time trqst_to;
+
     typedef bit [7:0] payload_t;
+    typedef enum {
+      NOERR,
+      FERR_START,
+      PERR,
+      FERR_STOP,
+      RX_CLK_TO_[0:9],
+      RQST_TO,
+      TX_CLK_TO_[0:9],
+      FERR_ACK
+    } err_t;
 
     virtual ps2_if.dev ps2;
     bit clk;
@@ -81,12 +97,14 @@ package tb_ps2_controller_pkg;
       tclk = 50us;
       ts = lfsr_range(25,5)*1us;
       dt = _dt;
+      tclk_to = 150us;
+      trqst_to = 20ms;
 
       ps2 = _ps2;
       clk = '0;
     endfunction
 
-    task run();
+    task run(err_t err);
       ps2.dat_od = '1;
       ps2.clk_od = '1;
 
@@ -101,27 +119,31 @@ package tb_ps2_controller_pkg;
           @(posedge clk);
           log("Ps2Device", "Checking the bus state");
 
-          if (ps2.clk) // not inhibited
+          if (ps2.clk) begin // not inhibited
             if (ps2.dat) // not a request-to-send
-              _tx();
+              _tx(err);
             else
-              _rx();
+              _rx(err);
+
+            if (err != NOERR)
+              err = err.next();
+          end
         end
 
       join
     endtask
 
-    task _tx();
+    task _tx(err_t err);
       payload_t py = payload_t'(lfsr_range(2**8-1));
 
       bit [10:0] pkt = {
-        1'b0, // start bit
+        err != FERR_START ? 1'b0 : 1'b1, // start bit
         {<<{py}}, // payload lsb-first
-        ~^py, // odd-parity
-        1'b1 // stop bit
+        err != PERR ? ~^py : ^py, // odd-parity
+        err != FERR_STOP ? 1'b1 : 1'b0 // stop bit
       };
 
-      log("Ps2Device", $sformatf("Sending '0b%b' as '0b%b'", py, pkt));
+      log("Ps2Device", $sformatf("Sending '0b%b' as '0b%b' (%s)", py, pkt, err.name()));
       foreach (pkt[i]) begin
 
         // Generate bit 't1' before the falling edge
@@ -139,6 +161,13 @@ package tb_ps2_controller_pkg;
         end
 
         // Generate the falling edge
+        if (i != 10 & i == int'(err)-int'(RX_CLK_TO_0)) begin
+          log("Ps2Device", $sformatf("(i = %0d) Forcing a clock timeout", i));
+          ps2.dat_od <= '1;
+          #tclk_to;
+          return;
+        end
+
         ps2.clk_od <= '0;
 
         // Generate the rising edge
@@ -146,9 +175,13 @@ package tb_ps2_controller_pkg;
         ps2.clk_od <= '1;
 
       end
+
+      if (err == FERR_STOP)
+        ps2.dat_od <= '1;
+
     endtask
 
-    task _rx();
+    task _rx(err_t err);
       payload_t py;
 
       for (int i = 0; i < 11; i++) begin
@@ -168,11 +201,23 @@ package tb_ps2_controller_pkg;
         end
 
         // Reverse roles for generating the acknowledgement
-        if (i == 10) begin
+        if (i == 10 & err != FERR_ACK) begin
           ps2.dat_od <= '0;
         end
 
         // Generate the falling edge
+        if (err == RQST_TO) begin
+          log("Ps2Device", $sformatf("Forcing a rqst timeout (%s)", err.name()));
+          #trqst_to;
+          return;
+        end
+        if (i > 0 & i-1 == int'(err)-int'(TX_CLK_TO_0)) begin
+          log("Ps2Device", $sformatf("Forcing a clk timeout (%s)", err.name()));
+          ps2.dat_od <= '1;
+          #tclk_to;
+          return;
+        end
+
         @(negedge clk);
         ps2.clk_od <= '0;
 
