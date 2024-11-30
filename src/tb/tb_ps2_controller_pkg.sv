@@ -192,12 +192,10 @@ package tb_ps2_controller_pkg;
         if (i > 0 & i < 9) // data bit
           py[i-1] = ps2.dat;
         else if (i == 9 & ps2.dat != ~^py) begin
-          log("Ps2Device", "Host parity error");
-          $stop;
+          log("Ps2Device", "Host parity error", 1);
         end
         else if (i == 10 & !ps2.dat) begin
-          log("Ps2Device", "Host frame error");
-          $stop;
+          log("Ps2Device", "Host frame error", 1);
         end
 
         // Reverse roles for generating the acknowledgement
