@@ -139,17 +139,8 @@ always_comb begin
         endcase
       end
 
-    FERR:
-      next_state = en ? FERR : INHIBIT;
-
-    PERR:
-      next_state = en ? PERR : INHIBIT;
-
-    CLK_TO:
-      next_state = en ? CLK_TO : INHIBIT;
-
-    RQST_TO:
-      next_state = en ? RQST_TO : INHIBIT;
+    FERR, PERR, CLK_TO, RQST_TO:
+      next_state = en ? state : INHIBIT;
 
     default:
       next_state = INHIBIT;
