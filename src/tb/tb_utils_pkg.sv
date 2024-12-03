@@ -14,16 +14,17 @@ package tb_utils_pkg;
   // for toolchains lacking systemverilog verification licenses
   //
 
-  function automatic int unsigned lfsr();
-    // any non-zero seed
-    static bit [31:0] state = 32'hAE1F_B42C;
+  // if made a static variable of lfsr(), not updated
+  // (unless for instance, printed with log())
+  bit [31:0] lfsr_state = 32'hAE1F_B42C;
 
+  function automatic int unsigned lfsr();
     // XNOR Taps: 32,22,2,1
     // https://docs.amd.com/v/u/en-US/xapp052
-    state = {state[30:0], ~^{state[31],state[21],state[1],state[0]}};
-    log("LFSR", $sformatf("state = %0d", state));
+    lfsr_state = {lfsr_state[30:0], ~^{lfsr_state[31],lfsr_state[21],lfsr_state[1],lfsr_state[0]}};
 
-    return state;
+    // log("LFSR", $sformatf("lfsr_state = %0d", lfsr_state));
+    return lfsr_state;
   endfunction
 
   function automatic int unsigned lfsr_range(int unsigned maxval, int unsigned minval = 0);

@@ -20,6 +20,9 @@ endinterface
 
 package tb_ps2_device_pkg;
 
+  timeunit 1ns;
+  timeprecision 1ns;
+
   import tb_utils_pkg::*;
 
   function automatic string flagsToStr(ps2_pkg::flags_t flags);

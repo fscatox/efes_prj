@@ -18,7 +18,7 @@
 module spi_slave #(
   parameter int unsigned NBIT = 8,
   parameter bit CPOL = 0,
-  parameter bit CPHA = 1
+  parameter bit CPHA = 0
 ) (
   input var logic clk,
   input var logic rst_n,
