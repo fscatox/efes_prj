@@ -5,7 +5,8 @@
  */
 
 
-import tb_ps2_controller_pkg::*;
+import tb_utils_pkg::*;
+import tb_ps2_device_pkg::*;
 
 module tb_ps2_controller;
 
