@@ -17,6 +17,7 @@ module ps2_dp #(
   parameter real WATCHDOG_RQST_S = 15e-3
 ) (
   input var logic clk,
+  input var logic rst_n,
   input var logic [7:0] tx_data,
   output logic [7:0] rx_data,
 
@@ -80,8 +81,10 @@ assign status.ps2_dat = ps2_dat_dl;
 //
 // multiplexed drivers of ps2_dat
 //
-always_ff @(posedge clk) begin
-  if (ctrl.odreg_clk_en) begin
+always_ff @(posedge clk, negedge rst_n) begin
+  if (!rst_n)
+    ps2_dat_od <= '1;
+  else if (ctrl.odreg_clk_en) begin
     case (ctrl.ps2_dat_mux)
       default : ps2_dat_od <= '1; // 'z
       2'b01   : ps2_dat_od <= '0; // bus inhibited

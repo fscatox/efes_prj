@@ -51,9 +51,15 @@ ps2_pkg::status_t status;
 ps2_pkg::ctrl_t ctrl;
 
 // FF synchronizers to mitigate metastability
-always_ff @(posedge clk) begin
-  ps2_clk_sync <= {ps2_clk_sync[SYNC_STAGES-2:0], ps2_clk};
-  ps2_dat_sync <= {ps2_dat_sync[SYNC_STAGES-2:0], ps2_dat};
+always_ff @(posedge clk, negedge rst_n) begin
+  if (!rst_n) begin
+    ps2_clk_sync <= '1;
+    ps2_dat_sync <= '1;
+  end
+  else begin
+    ps2_clk_sync <= {ps2_clk_sync[SYNC_STAGES-2:0], ps2_clk};
+    ps2_dat_sync <= {ps2_dat_sync[SYNC_STAGES-2:0], ps2_dat};
+  end
 end
 
 // tristate buffers to drive the PS/2 open drain bus
@@ -62,6 +68,7 @@ assign ps2_dat = ps2_dat_od ? 'Z : '0;
 
 ps2_dp #(.FCLK_HZ(FCLK_HZ), .PSC(TIM_PSC)) ps2_dp_i (
   .clk,
+  .rst_n,
   .tx_data,
   .rx_data,
   .ps2_clk(ps2_clk_sync[SYNC_STAGES-1]),
