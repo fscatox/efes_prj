@@ -21,6 +21,7 @@ package tb_spi_master_pkg;
   timeprecision 1ns;
 
   import tb_utils_pkg::*;
+
   class SpiMaster #(
     parameter int unsigned NBIT = 8,
     parameter bit CPOL = 0,
@@ -63,7 +64,7 @@ package tb_spi_master_pkg;
           spi.mosi <= tx_data[NBIT-1];
         else
           spi.mosi <= 'x; // generated on the leading edge, right now don't care
-        log("SpiMaster", $sformatf("SPI begins: tx_data = '0h%h' (CPHA = %b)", tx_data, CPHA));
+        log("SpiMaster", $sformatf("SPI begins: tx_data = h%h (CPHA = %b)", tx_data, CPHA));
 
         // delay for the slave to handle synchronization across clock domains
         #TLEAD_SSN;
@@ -89,7 +90,7 @@ package tb_spi_master_pkg;
 
         spi.ss_n <= '1;
         mbox.put('{tx: tx_data, rx: rx_data});
-        log("SPIMaster", $sformatf("SPI ends: rx_data = '0h%h'", rx_data));
+        log("SPIMaster", $sformatf("SPI ends: rx_data = h%h", rx_data));
       end
 
     endtask

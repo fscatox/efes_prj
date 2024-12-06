@@ -88,7 +88,7 @@ initial begin : sys_logic_p
 
       ntrans++;
       pkt_slave.tx = tx_data_past;
-      log("System", $sformatf("SPI #%0d: tx_data = '0h%h'", ntrans, tx_data_past));
+      log("System", $sformatf("SPI #%0d: tx_data = h%h", ntrans, tx_data_past));
     end
 
     // Incoming data
@@ -97,7 +97,7 @@ initial begin : sys_logic_p
       @(posedge clk);
 
       pkt_slave.rx = rx_data;
-      log("System", $sformatf("SPI #%0d: rx_data = '0h%h'", ntrans, rx_data));
+      log("System", $sformatf("SPI #%0d: rx_data = h%h", ntrans, rx_data));
 
       // Basic checker
       mbox.get(pkt_master);

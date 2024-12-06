@@ -67,7 +67,7 @@ initial begin : host_logic_p
       @(posedge valid);
       @(posedge clk);
       if (~|flags)
-        log("Host", $sformatf("rx_data = '0b%b'", rx_data));
+        log("Host", $sformatf("rx_data = b%b", rx_data));
       else
         log("Host", $sformatf("Rx failed: %s", flagsToStr(flags)), 1);
     end
@@ -83,7 +83,7 @@ initial begin : host_logic_p
     // By deasserting the request, a valid pulse will be generated
     @(posedge clk);
     tx_rqst <= '0;
-    log("Host", $sformatf("Request-to-send: tx_data = '0b%b'", tx_data));
+    log("Host", $sformatf("Request-to-send: tx_data = b%b", tx_data));
 
     // tx_data can change, but must have been already latched
     tx_data <= '0;
@@ -101,7 +101,7 @@ initial begin : host_logic_p
 
     // With a 'blocking' valid
     @(posedge clk);
-    log("Host", $sformatf("Request-to-send: tx_data = '0b%b'", tx_data));
+    log("Host", $sformatf("Request-to-send: tx_data = b%b", tx_data));
 
     @(posedge valid);
     @(posedge clk);

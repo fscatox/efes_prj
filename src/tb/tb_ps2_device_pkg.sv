@@ -114,7 +114,7 @@ package tb_ps2_device_pkg;
         err != FERR_STOP ? 1'b1 : 1'b0 // stop bit
       };
 
-      log("Ps2Device", $sformatf("Sending '0b%b' as '0b%b' (%s)", py, pkt, err.name()));
+      log("Ps2Device", $sformatf("Sending b%b as b%b (%s)", py, pkt, err.name()));
       foreach (pkt[i]) begin
 
         // Generate bit 't1' before the falling edge
@@ -198,7 +198,7 @@ package tb_ps2_device_pkg;
 
       // Revert acknowledgement
       ps2.dat_od <= '1;
-      log("Ps2Device", $sformatf("Rx done: '0b%b'", py));
+      log("Ps2Device", $sformatf("Rx done: b%b", py));
     endtask
 
   endclass
