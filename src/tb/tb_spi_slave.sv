@@ -117,7 +117,7 @@ end
 
 initial begin
   mbox = new();
-  master = new(spi_bus, mbox);
+  master = new(spi_bus.master, mbox);
   master.run();
 end
 

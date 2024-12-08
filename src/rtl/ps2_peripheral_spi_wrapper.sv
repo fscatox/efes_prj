@@ -31,6 +31,11 @@
  *                      running (EN bit is set) and the CEN bit is set, the current operation is
  *                      aborted and the controller is restarted in the operation mode given by TXEN.
  *
+ *                      If the PS/2 controller gets disabled while the PS/2 device is transmitting
+ *                      data, the PS/2 device may take up to 100us to abort. The PS/2 controller
+ *                      does not prevent being enabled during this interval, which may result in
+ *                      a failed data reception (FE, PE, or CTO set).
+ *
  *                    * BCLR (Buffer Clear)
  *                      This bit is set to flush the RX FIFO buffer. If both CEN and BCLR are set,
  *                      the flush operation is performed prior to enabling the controller.
@@ -126,29 +131,8 @@ module ps2_peripheral_spi_wrapper #(
   inout tri ps2_dat
 );
 
-typedef struct packed {
-  logic [15:8] data;
-  logic rxv;
-  logic txc;
-  logic rto;
-  logic cto;
-  logic pe;
-  logic fe;
-  logic oe;
-  logic en;
-} miso_pkt_t;
-
-typedef struct packed {
-  logic [15:8] data;
-  logic txen;
-  logic [6:3] padding;
-  logic bclr;
-  logic cen;
-  logic wen;
-} mosi_pkt_t;
-
-miso_pkt_t miso_pkt;
-mosi_pkt_t mosi_pkt;
+ps2_pkg::miso_pkt_t miso_pkt;
+ps2_pkg::mosi_pkt_t mosi_pkt;
 logic tx_strobe;
 logic rx_strobe;
 logic wr_strobe;

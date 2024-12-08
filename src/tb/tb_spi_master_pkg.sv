@@ -41,58 +41,61 @@ package tb_spi_master_pkg;
     virtual spi_if.master spi;
     mbox_t mbox;
 
-    function new(virtual spi_if.master _spi, mbox_t _mbox);
+    function new(virtual spi_if.master _spi, mbox_t _mbox = null);
       spi = _spi;
       mbox = _mbox;
-    endfunction
-
-    task run();
-      data_t tx_data, rx_data;
 
       // idle bus
       spi.ss_n = '1;
       spi.sclk = CPOL;
+    endfunction
 
-      forever begin
+    task transfer(input data_t tx_data, output data_t rx_data);
+      spi.ss_n <= '0;
+      if (!CPHA)
+        spi.mosi <= tx_data[NBIT-1];
+      else
+        spi.mosi <= 'x; // generated on the leading edge, right now don't care
+      log("SpiMaster", $sformatf("SPI begins: tx_data = h%h (CPHA = %b)", tx_data, CPHA));
 
-        // delay before starting an exchange
-        #(TSCLK+lfsr_range(TSCLK-1));
+      // delay for the slave to handle synchronization across clock domains
+      #TLEAD_SSN;
 
-        tx_data = lfsr_range(2**NBIT-1);
-        spi.ss_n <= '0;
+      foreach (tx_data[i]) begin
+        // leading sclk edge
+        spi.sclk <= ~spi.sclk;
         if (!CPHA)
-          spi.mosi <= tx_data[NBIT-1];
+          rx_data[i] = spi.miso;
         else
-          spi.mosi <= 'x; // generated on the leading edge, right now don't care
-        log("SpiMaster", $sformatf("SPI begins: tx_data = h%h (CPHA = %b)", tx_data, CPHA));
+          spi.mosi <= tx_data[i];
+        #TSCLK;
 
-        // delay for the slave to handle synchronization across clock domains
-        #TLEAD_SSN;
-
-        foreach (tx_data[i]) begin
-
-          // leading sclk edge
-          spi.sclk <= ~spi.sclk;
-          if (!CPHA)
-            rx_data[i] = spi.miso;
-          else
-            spi.mosi <= tx_data[i];
-          #TSCLK;
-
-          // trailing sclk edge
-          spi.sclk <= ~spi.sclk;
-          if (!CPHA)
-            spi.mosi <= !i ? 'x : tx_data[i-1]; // after last sampling edge, don't care
-          else
-            rx_data[i] = spi.miso;
-          #TSCLK;
-        end
-
-        spi.ss_n <= '1;
-        mbox.put('{tx: tx_data, rx: rx_data});
-        log("SPIMaster", $sformatf("SPI ends: rx_data = h%h", rx_data));
+        // trailing sclk edge
+        spi.sclk <= ~spi.sclk;
+        if (!CPHA)
+          spi.mosi <= !i ? 'x : tx_data[i-1]; // after last sampling edge, don't care
+        else
+          rx_data[i] = spi.miso;
+        #TSCLK;
       end
 
+      spi.ss_n <= '1;
+      log("SpiMaster", $sformatf("SPI ends: rx_data = h%h", rx_data));
+
+    endtask
+
+    task run();
+      data_t tx_data, rx_data;
+
+      forever begin
+        tx_data = lfsr_range(2**NBIT-1);
+
+        #(TSCLK+lfsr_range(TSCLK-1)); // delay before starting an exchange
+        transfer(tx_data, rx_data);
+
+        if (mbox != null)
+          mbox.put('{tx: tx_data, rx: rx_data});
+      end
     endtask
 
   endclass

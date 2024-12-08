@@ -65,7 +65,7 @@ package tb_ps2_device_pkg;
     bit clk;
 
     function new(virtual ps2_if.dev _ps2, time _dt = 0);
-      tclk = 50us;
+      tclk = lfsr_range(100, 60)*1us;
       ts = lfsr_range(25,5)*1us;
       dt = _dt;
       tclk_to = 150us;
@@ -73,12 +73,13 @@ package tb_ps2_device_pkg;
 
       ps2 = _ps2;
       clk = '0;
+
+      // bus idle
+      ps2.dat_od = '1;
+      ps2.clk_od = '1;
     endfunction
 
     task run(err_t err);
-      ps2.dat_od = '1;
-      ps2.clk_od = '1;
-
       fork
 
         begin : clk_p
@@ -101,7 +102,7 @@ package tb_ps2_device_pkg;
           end
         end
 
-      join
+      join_none
     endtask
 
     task _tx(err_t err);
@@ -120,7 +121,6 @@ package tb_ps2_device_pkg;
         // Generate bit 't1' before the falling edge
         #(tclk/2-ts);
         ps2.dat_od <= pkt[i];
-        log("Ps2Device", $sformatf("(i = %0d) ps2_dat <= %b", i, pkt[i]));
 
         // Check for inhibit at every falling edge, before generating
         // a transition on the bus

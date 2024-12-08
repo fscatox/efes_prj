@@ -7,6 +7,35 @@
 
 package ps2_pkg;
 
+  //
+  // See ps2_peripheral_spi_wrapper.sv
+  //
+
+  typedef struct packed {
+    logic [15:8] data;
+    logic rxv;
+    logic txc;
+    logic rto;
+    logic cto;
+    logic pe;
+    logic fe;
+    logic oe;
+    logic en;
+  } miso_pkt_t;
+
+  typedef struct packed {
+    logic [15:8] data;
+    logic txen;
+    logic [6:3] padding;
+    logic bclr;
+    logic cen;
+    logic wen;
+  } mosi_pkt_t;
+
+  //
+  // See ps2_controller.sv
+  //
+
   typedef struct packed {
     logic frame_error; // rx: missing start/stop; tx: missing ack
     logic parity_error; // rx: odd-parity bit wrong
