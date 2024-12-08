@@ -1,5 +1,5 @@
 /**
- * File          : tb_spi.sv
+ * File          : tb_spi_slave.sv
  * Author        : Fabio Scatozza <s315216@studenti.polito.it>
  * Date          : 03.12.2024
  */
@@ -7,13 +7,12 @@
 import tb_utils_pkg::*;
 import tb_spi_master_pkg::*;
 
-module tb_spi;
+module tb_spi_slave;
 
 timeunit 1ns;
 timeprecision 1ns;
 
-const time tclk = 20ns; // 50 MHz clock
-const time dt_clk = lfsr_range(tclk-1); // system/spi-master clocks shift
+localparam time Tclk = 20ns; // 50 MHz clock
 
 localparam int unsigned NTransactions = 100;
 
@@ -22,8 +21,9 @@ localparam bit Cpol = 0;
 localparam bit Cpha = 0;
 typedef SpiMaster#(Nbit, Cpol, Cpha) SpiMaster_t;
 
-logic clk, rst_n;
-logic [Nbit-1:0] tx_data, rx_data;
+bit clk, rst_n;
+bit [Nbit-1:0] tx_data;
+logic [Nbit-1:0] rx_data;
 logic tx_strobe, rx_strobe;
 
 //
@@ -55,7 +55,7 @@ int unsigned ntrans;
 
 initial begin : sys_clk_p
   clk = '0;
-  forever #(tclk/2) clk <= ~clk;
+  forever #(Tclk/2) clk <= ~clk;
 end
 
 initial begin : sys_logic_p

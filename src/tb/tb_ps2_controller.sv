@@ -12,12 +12,14 @@ module tb_ps2_controller;
 timeunit 1ns;
 timeprecision 1ns;
 
-const time tclk = 20ns; // 50 MHz clock
-const time dt_clk = lfsr_range(tclk-1); // host/device clocks shift
+localparam time Tclk = 20ns; // 50 MHz clock
+const time DtClk = lfsr_range(Tclk-1); // host/device clocks shift
 
-logic clk, rst_n, en;
-logic tx_rqst, valid;
-logic [7:0] tx_data, rx_data;
+bit clk, rst_n, en;
+bit tx_rqst;
+bit [7:0] tx_data;
+logic valid;
+logic [7:0] rx_data;
 ps2_pkg::flags_t flags;
 
 //
@@ -40,7 +42,7 @@ Ps2Device dev;
 
 initial begin : host_clk_p
   clk = 0;
-  forever #(tclk/2) clk <= ~clk;
+  forever #(Tclk/2) clk <= ~clk;
 end
 
 initial begin : host_logic_p
@@ -52,7 +54,7 @@ initial begin : host_logic_p
 
   // Reset the controller (asynch)
   rst_n <= '0;
-  #(tclk/2);
+  #(Tclk/2);
 
   // Keep the bus inhibited for some clock cycles
   rst_n <= '1;
@@ -117,7 +119,7 @@ initial begin : host_logic_p
 end : host_logic_p
 
 initial begin
-  dev = new(ps2_bus.dev, dt_clk);
+  dev = new(ps2_bus.dev, DtClk);
   dev.run(Ps2Device::NOERR);
 end
 

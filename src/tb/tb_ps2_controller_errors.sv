@@ -88,9 +88,7 @@ initial begin : host_logic_p
     err = err.next();
   end
 
-  log("######################################################################", "");
-  log("TOP", "TEST PASSED");
-  log("######################################################################", "", 1);
+  log("Checker", "TEST PASSED!", 1);
 
 end : host_logic_p
 

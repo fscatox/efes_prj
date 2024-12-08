@@ -23,7 +23,6 @@ package tb_utils_pkg;
     // https://docs.amd.com/v/u/en-US/xapp052
     lfsr_state = {lfsr_state[30:0], ~^{lfsr_state[31],lfsr_state[21],lfsr_state[1],lfsr_state[0]}};
 
-    // log("LFSR", $sformatf("lfsr_state = %0d", lfsr_state));
     return lfsr_state;
   endfunction
 

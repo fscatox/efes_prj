@@ -21,6 +21,8 @@ localparam time Tclk = 50ns;
 typedef bit [DataWidth-1:0] data2_t;
 typedef logic [DataWidth-1:0] data4_t;
 
+int unsigned ntrans;
+
 bit clk;
 bit rst_n;
 bit sclr;
@@ -35,11 +37,6 @@ logic empty, full;
 
 sa_sc_fifo #(DataWidth, AddrWidth) dut (.*);
 GoldenFifo #(DataWidth, AddrWidth) fifo;
-
-//
-// Checker utils
-//
-int unsigned ntrans;
 
 //
 // Clock
