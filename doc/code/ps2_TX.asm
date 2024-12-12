@@ -49,7 +49,7 @@ TX {
 	}
 	
 	valid = 1
-	ps2_clk_od = 0212
+	ps2_clk_od = 0
 
 
 }
