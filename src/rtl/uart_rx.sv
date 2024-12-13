@@ -13,7 +13,7 @@
  *                   f_tim = f_clk / (TIM_PSC+1)
  *                   f_uart = f_tim / (BIT_TIME_TICKS+1)
  *                 When the transmission completes, the valid signal pulses high for one
- *                 clock cycle, while the flags and the rx_data output are updated. The
+ *                 clock cycle, while the flags and the data output are updated. The
  *                 frame error is detected when a STOP bit is not recognized at the
  *                 expected time; the parity error is detected when the frame carries the
  *                 parity bit and the parity check fails.
@@ -39,12 +39,12 @@ module uart_rx #(
   input var logic clk,
   input var logic rst_n,
 
-  output logic [NCHAR-1:0] rx_data,
+  output logic [NCHAR-1:0] char,
   output logic valid,
   output logic frame_error,
   output logic parity_error,
 
-  input var logic uart_rx
+  input var logic urx
 );
 
 // Timer reload values
@@ -86,7 +86,7 @@ always_ff @(posedge clk, negedge rst_n) begin
   if (!rst_n)
     urx_q <= '1;
   else
-    urx_q <= {urx_q[SYNC_STAGES:1], uart_rx};
+    urx_q <= {urx_q[SYNC_STAGES:1], urx};
 end
 
 assign urx_negedge = ~urx_q[SYNC_STAGES] & urx_q[SYNC_STAGES+1];
@@ -135,7 +135,7 @@ assign pbit_update = &shreg_q[NSTOP:0];
 
 always_ff @(posedge clk)
   if (out_clk_en) begin
-    rx_data <= shreg_q[1 +: NCHAR];
+    char <= shreg_q[1 +: NCHAR];
     frame_error <= ~&shreg_q[FrameSize-1 -: NSTOP];
   end
 

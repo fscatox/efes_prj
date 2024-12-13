@@ -128,7 +128,7 @@ package tb_uart_tx_pkg;
 
         // revert any frame error
         uart.to_rx = '1;
-        #UartTclk;
+        #(lfsr_range(UartTclk, 1));
 
       end
     endtask

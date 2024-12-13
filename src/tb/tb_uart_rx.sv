@@ -28,7 +28,7 @@ typedef UartFrame #(Nchar, Parity, ParityType, Nstop) UartFrame_t;
 typedef UartTx #(UartFrame_t, FclkUart) UartTx_t;
 
 bit clk, rst_n;
-logic [Nchar-1:0] rx_data;
+logic [Nchar-1:0] char;
 logic valid;
 logic frame_error, parity_error;
 
@@ -40,7 +40,7 @@ uart_if uart_bus();
 
 uart_rx #(Nchar, Parity, ParityType, Nstop, Fclk, FclkUart, UartRxPsc) dut (
   .*,
-  .uart_rx(uart_bus.to_rx)
+  .urx(uart_bus.to_rx)
 );
 
 UartTx_t uart_tx;
@@ -87,7 +87,7 @@ initial begin : sys_logic_p
       log("Checker", "Frame error MISMATCH!", 1);
     if (apkt.parity_error != parity_error)
       log("Checker", "Parity error MISMATCH!", 1);
-    if (!apkt.frame_error & (apkt.uframe.char != rx_data))
+    if (!apkt.frame_error & (apkt.uframe.char != char))
       log("Checker", "Character MISMATCH!", 1);
   end
 
