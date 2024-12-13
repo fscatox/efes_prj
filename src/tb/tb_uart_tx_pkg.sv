@@ -33,7 +33,7 @@ package tb_uart_tx_pkg;
     char_t char;
 
     // replaces ::randomize() for svverifcation license limitations
-    function void lfsr_randomize();
+    virtual function void lfsr_randomize();
       char = lfsr_range(2**NCHAR-1);
       pbit = ^{PARITY_TYPE, char};
       stop = '1;
@@ -128,7 +128,7 @@ package tb_uart_tx_pkg;
 
         // revert any frame error
         uart.to_rx = '1;
-        #(lfsr_range(UartTclk, 1));
+        #(lfsr_range(UartTclk, UartTclk/10));
 
       end
     endtask

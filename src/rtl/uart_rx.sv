@@ -30,8 +30,8 @@ module uart_rx #(
 
   // Baud rate configuration
   parameter real FCLK_HZ = 50e6,
-  parameter real FUART_HZ = 115200,
-  parameter int unsigned TIM_PSC = 30,
+  parameter real FUART_HZ = 115200, // Effective: TimFclkHz/round(TimFclkHz/FUART_HZ)
+  parameter int unsigned TIM_PSC = 30, // TimFclkHz = FCLK_HZ/(TIM_PSC+1)
 
   // Clock domain crossing
   parameter int unsigned SYNC_STAGES = 2
