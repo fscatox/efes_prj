@@ -27,5 +27,29 @@
   )\
 )
 
+// Returns largest value not greater than X
+// longint floor(real x)
+`define FLOOR(x) (\
+  `REAL_INT64_TRUNC(x) == (x) ?\
+    longint'(x)\
+  :(\
+    (x) > 0.0 ? (\
+      longint'(x) - (`REAL_INT64_TRUNC(x) <= (x) ? 0 : 1)\
+    ) : (\
+      (x) == 0.0 ? 0 : (\
+        longint'(x) - (`REAL_INT64_TRUNC(x) >= (x) ? 1 : 0)\
+      )\
+    )\
+  )\
+)
+
+// Rounds x to the nearest value (when tie, away from zero)
+// longint round(real x)
+`define ROUND(x) (\
+  (x) > 0.0 ? `FLOOR(x) : (\
+    (x) < 0.0 ? `CEIL(x) : 0\
+  )\
+)
+
 `endif // MATH_SVH
 

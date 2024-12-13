@@ -28,5 +28,5 @@ do {
 
 frame_error = ! &frame[MSB -: NSTOP];
 parity_error = PARITY_NONE ? 0 : pbit;
-rx_data = frame[0 +: NCHAR];
+rx_data = frame[1 +: NCHAR];
 valid = 1;
