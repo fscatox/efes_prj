@@ -1,9 +1,9 @@
 %!PS-Adobe-3.0 EPSF-3.0
 %%Title: system_diagram.eps
 %%Creator: XCircuit v3.9 rev73
-%%CreationDate: Sat Dec 14 00:37:30 2024
+%%CreationDate: Mon Dec 16 05:21:35 2024
 %%Pages: 1
-%%BoundingBox: 68 68 802 712
+%%BoundingBox: 68 68 802 718
 %%DocumentNeededResources: font Helvetica Helvetica-Bold Times-Roman 
 %%EndComments
 %%BeginProlog
@@ -475,9 +475,9 @@ endgate
 
 %%Page: system_diagram 1
 %%PageOrientation: Portrait
-%%PageBoundingBox: 72 72 798 708
+%%PageBoundingBox: 72 72 798 714
 /pgsave save def bop
-% 32.00 4.00 gridspace
+% 32.00 8.00 gridspace
 1.0000 inchscale
 2.6000 setlinewidth 1184 896 translate
 
@@ -562,19 +562,24 @@ endgate
 1.000 360.000 688 800 generic::tap
 1.000 360.000 240 800 generic::tap
 224 1.000 624 -672 624 576 -672 576 -672 -672 4 polygon
-(DE1-SoC Board) {/Helvetica cf} 2 1045 0.000 1.000 -528 608 label
+(DE1-SoC Board) {/Helvetica cf} 2 1045 0.000 1.000 -500 528 label
 (Cyclone V SoC) {/Helvetica cf} 2 1045 0.000 1.000 400 336 label
 0.678 1.000 0.184 scb
-512 1.000 -992 992 -992 -704 944 -704 944 992 4 polygon
+512 1.000 -992 1008 -992 -704 944 -704 944 1008 4 polygon
 sce
 (UART) {/Helvetica cf} 2 1044 90.000 1.000 96 352 label
 1.000 90.000 0 128 generic::tap
 1.000 180.000 -736 -128 generic::tap
-1 1.000 -432 800 64 0.000 360.000 xcarc
-1 1.000 -352 800 -208 800 2 polygon
-(Push Button) {CR} (USER) {/Helvetica cf} 4 1053 0.000 1.000 -432 944 label
-1.000 0.000 -432 800 ::Pushbutton
-1.000 360.000 -208 800 generic::tap
+1 1.000 -464 880 64 0.000 360.000 xcarc
+1 1.000 -384 880 -240 880 2 polygon
+(Push Button) {CR} (RESET) {/Helvetica cf} 4 1045 0.000 1.000 -704 880 label
+1.000 0.000 -464 880 ::Pushbutton
+1.000 360.000 -240 880 generic::tap
+1 1.000 -464 720 64 0.000 360.000 xcarc
+1 1.000 -384 720 -240 720 2 polygon
+(Push Button) {CR} (USER) {/Helvetica cf} 4 1045 0.000 1.000 -704 720 label
+1.000 0.000 -464 720 ::Pushbutton
+1.000 360.000 -240 720 generic::tap
 pgsave restore showpage
 
 %%Trailer

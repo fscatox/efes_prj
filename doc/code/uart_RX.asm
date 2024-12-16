@@ -7,23 +7,18 @@ while(!urx_negedge);
 tim_reload();
 
 do {
-
 	// wait sampling instant
 	while(!tim_tc) {
-
 		// if there are transitions, resync clocks
 		if (urx_edge)
 			tim_reload();
 	}
-
 	// sample 
 	frame = {urx_sync, frame[MSB:1]};
-
 	// update parity (start, parity xor'd too)
 	if (!PARITY_NONE & (&frame[NSTOP-1:0]))
 		pbit ^= urx_sync;
 
-	
 } while (frame[0]);
 
 frame_error = ! &frame[MSB -: NSTOP];
