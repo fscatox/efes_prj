@@ -1,9 +1,9 @@
 %!PS-Adobe-3.0 EPSF-3.0
 %%Title: motor_board.eps
 %%Creator: XCircuit v3.9 rev73
-%%CreationDate: Thu Dec 19 14:21:01 2024
+%%CreationDate: Sun Dec 22 22:33:51 2024
 %%Pages: 1
-%%BoundingBox: 68 68 1126 838
+%%BoundingBox: 68 68 1210 838
 %%DocumentNeededResources: font Helvetica Times-Roman Symbol 
 %%EndComments
 %%BeginProlog
@@ -336,7 +336,7 @@ begingate
 1 1.000 -240 32 -336 32 2 polygon
 1 1.000 -240 -96 -336 -96 2 polygon
 (2) {/Helvetica cf} 2 20 0.000 0.800 -288 48 label
-(1) {/Helvetica cf} 2 20 0.000 0.800 -288 -80 label
+(1) {/Helvetica cf} 2 20 0.000 0.800 -288 -112 label
 1 1.000 -80 -336 -80 -320 -176 -320 -176 96 4 polygon
 0.800 0.000 -176 96 generic::dot
 0 1.000 -304 720 -304 -736 304 -736 304 720 4 polygon
@@ -348,6 +348,22 @@ begingate
 (3) {/Helvetica cf} 2 20 0.000 0.800 -288 112 label
 (16) {/Helvetica cf} 2 20 0.000 0.800 -288 -176 label
 (17) {/Helvetica cf} 2 20 0.000 0.800 -288 -512 label
+(VSENSE1) {/Helvetica 0.550 cf} 2 23 0.000 0.800 288 -384 label
+(RC) {/Helvetica 0.550 cf} 2 20 0.000 0.800 -256 -112 label
+(OSC) {/Helvetica 0.550 cf} 2 20 0.000 0.800 -256 48 label
+(SYNC) {/Helvetica 0.550 cf} 2 20 0.000 0.800 -256 112 label
+(EN) {/Helvetica 0.550 cf} 2 20 0.000 0.800 -256 176 label
+(IN1) {/Helvetica 0.550 cf} 2 20 0.000 0.800 -256 688 label
+(IN2) {/Helvetica 0.550 cf} 2 20 0.000 0.800 -256 560 label
+(IN3) {/Helvetica 0.550 cf} 2 20 0.000 0.800 -256 432 label
+(IN4) {/Helvetica 0.550 cf} 2 20 0.000 0.800 -256 304 label
+(OUT4) {/Helvetica 0.550 cf} 2 23 0.000 0.800 288 224 label
+(OUT3) {/Helvetica 0.550 cf} 2 23 0.000 0.800 288 352 label
+(OUT2) {/Helvetica 0.550 cf} 2 23 0.000 0.800 288 480 label
+(OUT1) {/Helvetica 0.550 cf} 2 23 0.000 0.800 288 608 label
+(VSENSE2) {/Helvetica 0.550 cf} 2 23 0.000 0.800 288 -720 label
+(REF1) {/Helvetica 0.550 cf} 2 20 0.000 0.800 -288 -208 label
+(REF2) {/Helvetica 0.550 cf} 2 20 0.000 0.800 -288 -544 label
 endgate
 } def
 
@@ -411,21 +427,33 @@ begingate
 (4) {/Helvetica cf} 2 29 0.000 0.800 208 656 label
 (Vss) {/Helvetica cf} 2 29 0.000 0.800 -208 624 label
 (Vs) {/Helvetica cf} 2 29 0.000 0.800 208 624 label
-(1) {/Helvetica cf} 2 20 0.000 0.800 176 -640 label
-(15) {/Helvetica cf} 2 23 0.000 0.800 16 -640 label
-(5) {/Helvetica cf} 2 20 0.000 0.800 -240 480 label
-(7) {/Helvetica cf} 2 20 0.000 0.800 -240 128 label
-(6) {/Helvetica cf} 2 20 0.000 0.800 -240 432 label
-(2) {/Helvetica cf} 2 23 0.000 0.800 240 480 label
-(3) {/Helvetica cf} 2 23 0.000 0.800 240 128 label
-(10) {/Helvetica cf} 2 20 0.000 0.800 -240 -160 label
-(12) {/Helvetica cf} 2 20 0.000 0.800 -240 -512 label
-(11) {/Helvetica cf} 2 20 0.000 0.800 -240 -208 label
+(1) {/Helvetica cf} 2 23 0.000 0.800 16 -624 label
+(15) {/Helvetica cf} 2 20 0.000 0.800 176 -624 label
+(5) {/Helvetica cf} 2 20 0.000 0.800 -240 -160 label
+(7) {/Helvetica cf} 2 20 0.000 0.800 -240 -512 label
+(6) {/Helvetica cf} 2 20 0.000 0.800 -240 -208 label
+(2) {/Helvetica cf} 2 23 0.000 0.800 240 -160 label
+(3) {/Helvetica cf} 2 23 0.000 0.800 240 -512 label
+(10) {/Helvetica cf} 2 20 0.000 0.800 -240 480 label
+(12) {/Helvetica cf} 2 20 0.000 0.800 -240 128 label
+(11) {/Helvetica cf} 2 20 0.000 0.800 -240 432 label
 1 1.000 -208 -704 -208 -672 2 polygon
 (8) {/Helvetica cf} 2 17 0.000 0.800 -208 -656 label
-(13) {/Helvetica cf} 2 23 0.000 0.800 240 -160 label
-(14) {/Helvetica cf} 2 23 0.000 0.800 240 -512 label
+(13) {/Helvetica cf} 2 23 0.000 0.800 240 480 label
+(14) {/Helvetica cf} 2 23 0.000 0.800 240 128 label
 (L298) {/Helvetica cf} 2 21 0.000 0.800 128 704 label
+(SENSEA) {/Helvetica 0.550 cf} 2 23 0.000 0.800 16 -656 label
+(SENSEB) {/Helvetica 0.550 cf} 2 20 0.000 0.800 176 -656 label
+(IN1) {/Helvetica 0.550 cf} 2 20 0.000 0.800 -208 -160 label
+(ENA) {/Helvetica 0.550 cf} 2 20 0.000 0.800 -208 -208 label
+(IN2) {/Helvetica 0.550 cf} 2 20 0.000 0.800 -208 -512 label
+(OUT2) {/Helvetica 0.550 cf} 2 23 0.000 0.800 240 -480 label
+(OUT1) {/Helvetica 0.550 cf} 2 23 0.000 0.800 240 -128 label
+(IN3) {/Helvetica 0.550 cf} 2 20 0.000 0.800 -192 480 label
+(OUT3) {/Helvetica 0.550 cf} 2 23 0.000 0.800 240 512 label
+(ENB) {/Helvetica 0.550 cf} 2 20 0.000 0.800 -192 432 label
+(IN4) {/Helvetica 0.550 cf} 2 20 0.000 0.800 -192 128 label
+(OUT4) {/Helvetica 0.550 cf} 2 23 0.000 0.800 240 160 label
 endgate
 } def
 
@@ -457,12 +485,27 @@ infolabel
 endgate
 } def
 
+/analog::polarized {
+begingate
+1 1.000 0 -64 0 -6 2 polygon
+1 1.000 0 64 0 6 2 polygon
+1 1.000 -32 6 32 6 2 polygon
+1 1.000 0 -80 74 66.000 114.000 xcarc
+1.000 0.000 0.000 scb
+(t) {/Times-Roman cf} 2 9 0.000 1.000 0 64 pinlabel
+(b) {/Times-Roman cf} 2 13 0.000 1.000 0 -64 pinlabel
+0.180 0.545 0.341 scb
+(spice:C%i %pt %pb 1.0P) {/Times-Roman cf} 2 0 0.000 1.000 -208 -160 infolabel
+(sim:e %pt %pb %pb) {/Times-Roman cf} 2 0 0.000 1.000 -208 -208 infolabel
+endgate
+} def
+
 
 %%EndSetup
 
 %%Page: motor_board 1
 %%PageOrientation: Portrait
-%%PageBoundingBox: 72 72 1122 834
+%%PageBoundingBox: 72 72 1206 834
 /pgsave save def bop
 1.0000 inchscale
 2.6000 setlinewidth 192 2224 translate
@@ -616,7 +659,7 @@ endgate
 0.800 0.000 2112 -64 generic::dot
 (R1) {/Helvetica cf} 2 23 0.000 0.800 192 -1040 label
 (R2) {/Helvetica cf} 2 23 0.000 0.800 320 -1152 label
-(C4) {/Helvetica cf} 2 23 0.000 0.800 304 -1296 label
+(C5) {/Helvetica cf} 2 23 0.000 0.800 304 -1296 label
 (R3) {/Helvetica cf} 2 20 0.000 0.800 464 -1152 label
 (R4) {/Helvetica cf} 2 20 0.000 0.800 464 -1408 label
 (R7) {/Helvetica cf} 2 23 0.000 0.800 1888 -1872 label
@@ -635,7 +678,7 @@ endgate
 (D5) {/Helvetica cf} 2 23 0.000 0.800 2288 -1680 label
 1 1.000 960 -1920 944 -1920 960 -1936 976 -1920 960 -1920 5 polygon
 0.678 1.000 0.184 scb
-512 1.000 0 0 0 -2032 2800 -2032 2800 0 4 polygon
+512 1.000 0 0 0 -2032 3024 -2032 3024 0 4 polygon
 sce
 (W) {/Symbol cf} (5.6 k) {/Helvetica cf} 4 23 0.000 0.800 1456 -176 label
 (W) {/Symbol cf} (1.8 k) {/Helvetica cf} 4 23 0.000 0.800 1456 -320 label
@@ -655,6 +698,15 @@ label
 (2 W) {/Helvetica cf} 2 20 0.000 0.800 2112 -1936 label
 (W) {/Symbol cf} (22 k) {/Helvetica cf} 4 20 0.000 0.800 464 -1184 label
 (W) {/Symbol cf} (4.7 k) {/Helvetica cf} 4 20 0.000 0.800 464 -1440 label
+1.000 0.000 2848 -304 analog::polarized
+(C1) {/Helvetica cf} 2 20 0.000 0.800 1088 -304 label
+(C2) {/Helvetica cf} 2 20 0.000 0.800 1824 -176 label
+(C3) {/Helvetica cf} 2 20 0.000 0.800 2688 -272 label
+1 1.000 2848 -368 2832 -368 2848 -384 2864 -368 2848 -368 5 polygon
+1 1.000 2640 -240 2848 -240 2 polygon
+0.800 0.000 2640 -240 generic::dot
+(C4) {/Helvetica cf} 2 20 0.000 0.800 2896 -272 label
+(220 uF) {/Helvetica cf} 2 20 0.000 0.800 2896 -304 label
 pgsave restore showpage
 
 %%Trailer
