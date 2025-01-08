@@ -1,21 +1,52 @@
 /**
- * @file     main.c
+ * @file     main.cpp
  * @author   Fabio Scatozza <s315216@studenti.polito.it>
  * @date     05.01.2025
  */
 
 #include "main.h"
+#include <stm32f4xx_ll_bus.h>
+#include <stm32f4xx_ll_pwr.h>
+#include <stm32f4xx_ll_rcc.h>
+#include <stm32f4xx_ll_system.h>
+#include <stm32f4xx_ll_utils.h>
+
+#include "TimeBase.h"
+#include "gpio.h"
+
+#include "PushButton.h"
+
+void toggleLed() { LL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin); }
+void clearLed() { LL_GPIO_ResetOutputPin(LD2_GPIO_Port, LD2_Pin); }
+PushButton ubutton(B1_GPIO_Port, B1_Pin, toggleLed, clearLed);
+
+extern "C" void EXTI15_10_IRQHandler() {
+  ubutton.extiHandler();
+}
 
 __NO_RETURN int main() {
 
+  /* Configure system clock tree */
   systemClockConfig();
 
-  while (1) {
+  /* Start systick time base */
+  timeBaseInit();
 
+  /* Initialize GPIO ports */
+  gpioInit();
+
+  /* Initialize push button */
+  ubutton.init();
+
+  /* Configure peripheral interrupts */
+  NVIC_EnableIRQ(ubutton.irqn());
+  ubutton.enableIt();
+
+  while (true) {
+    ubutton.run();
   }
 }
 
-/* Increase HCLK to 64 MHz */
 void systemClockConfig(void) {
 
   /* On reset, the 16 MHz internal RC oscillator is selected.
@@ -34,7 +65,7 @@ void systemClockConfig(void) {
 
   /* Configure the PLL to generate the target HCLK from HSI */
   LL_RCC_PLL_ConfigDomain_SYS(LL_RCC_PLLSOURCE_HSI,
-    LL_RCC_PLLM_DIV_8, 64, LL_RCC_PLLP_DIV_2);
+    LL_RCC_PLLM_DIV_8, HCLK_FREQUENCY_HZ/1000000, LL_RCC_PLLP_DIV_2);
 
   /* Configure peripherals clock tree
    * HPRE   (AHB): 0x0000, /1
@@ -53,6 +84,6 @@ void systemClockConfig(void) {
   while (LL_RCC_GetSysClkSource() != LL_RCC_SYS_CLKSOURCE_STATUS_PLL);
 
   /* Update CMSIS SystemCoreClock variable */
-  LL_SetSystemCoreClock(64000000);
+  LL_SetSystemCoreClock(HCLK_FREQUENCY_HZ);
 
 }

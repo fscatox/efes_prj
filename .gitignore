@@ -1,5 +1,8 @@
 fpga/quartus/
 fpga/questa/
+
 fw/.idea
+fw/.cache
+fw/.clangd
 fw/cmake-build*
 fw/sdk

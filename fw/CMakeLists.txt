@@ -44,6 +44,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 )
 
 # Add project sources
+file(GLOB_RECURSE core_src CONFIGURE_DEPENDS "core/src/*.c*")
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         ${cmsis_core_device_SOURCE_DIR}/Source/Templates/system_stm32f4xx.c
         ${stm32_hal_SOURCE_DIR}/Src/stm32f4xx_ll_exti.c
@@ -55,8 +56,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         ${stm32_hal_SOURCE_DIR}/Src/stm32f4xx_ll_tim.c
         ${stm32_hal_SOURCE_DIR}/Src/stm32f4xx_ll_usart.c
         ${stm32_hal_SOURCE_DIR}/Src/stm32f4xx_ll_utils.c
-        core/src/startup_stm32f401xe.c
-        core/src/main.c
+        ${core_src}
 )
 
 # Add project macros

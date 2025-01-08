@@ -9,6 +9,8 @@
  *
  * References    : CMSIS v6.1.0
  *                 STMicroelectronics/STM32CubeF4 v1.28.1
+ *                 git://sourceware.org/git/newlib-cygwin.git
+ *                 (revision: 7923059bff6c120c6fb74b63c7553ea345c0a8f3)
  */
 
 /* check minimum ram space at linking time for heap and stack */
@@ -52,13 +54,15 @@ SECTIONS
     *(.ARM.extab* .gnu.linkonce.armextab.*)
   } >FLASH
 
-  .ARM.exidx : ALIGN(4)
+  .ARM : ALIGN(4)
   {
     PROVIDE(__exidx_start = .);
     *(.ARM.exidx* .gnu.linkonce.armexidx.*)
     PROVIDE(__exidx_end = .);
   } >FLASH
 
+  .eh_frame : ALIGN(4) { *(.eh_frame) } >FLASH
+  
   .debug_frame : ALIGN(4) { *(.debug_frame) } >FLASH
 
   /*
@@ -66,24 +70,26 @@ SECTIONS
    * {__preinit, __init, __fini}_array_{start, end} are exported for newlib
    * see: __libc_init_array()
    */
-  .preinit_array : ALIGN(4)
+  .preinit_array (READONLY) : ALIGN(4)
   {
     PROVIDE(__preinit_array_start = .);
     KEEP(*(.preinit_array))
     PROVIDE(__preinit_array_end = .);
   } >FLASH
 
-  .init_array : ALIGN(4)
+  .init_array (READONLY) : ALIGN(4)
   {
     PROVIDE(__init_array_start = .);
     KEEP(*(SORT_BY_INIT_PRIORITY(.init_array.*)))
+    KEEP(*(SORT_BY_INIT_PRIORITY(.init_array*)))
     PROVIDE(__init_array_end = .);
   } >FLASH
 
-  .fini_array : ALIGN(4)
+  .fini_array (READONLY) : ALIGN(4)
   {
     PROVIDE(__fini_array_start = .);
     KEEP(*(SORT_BY_INIT_PRIORITY(.fini_array.*)))
+    KEEP(*(SORT_BY_INIT_PRIORITY(.fini_array*)))
     PROVIDE(__fini_array_end = .);
   } >FLASH
 
@@ -102,17 +108,16 @@ SECTIONS
   PROVIDE(__data_size = SIZEOF(.data));
 
   /* zeroed data
-   * the symbols are used by */
+   * the symbols are used by crt0 to zero fill the vma region
+   */
   .bss : ALIGN(4) {
-    PROVIDE(__bss_start = .);
-    PROVIDE(__bss_start__ = __bss_start);
+    PROVIDE(__bss_start__ = .);
     *(.bss .bss.* .gnu.linkonce.b.*)
     *(COMMON)
     /* extend to a word boundary if populated */
     . = ALIGN(. != 0 ? 4 : 1);
     PROVIDE(__bss_end__ = .);
   } >RAM
-  PROVIDE(__bss_size = SIZEOF(.bss));
 
   /* remaining ram is shared for stack and heap use
    * heap/stack collisions are detected dynamically, with no __heap_limit to honour
@@ -123,15 +128,18 @@ SECTIONS
    *     single main stack, used in Thread and Handler modes
    *     AAPCS requires the stack to be 8B-aligned at public interfaces
    *     on reset, CCR->STKALIGN is set: on exception entry the stack is 8B-aligned
+   *
+   * newlib crt0 explicitly loads sp with __stack
+   * see: _start(): line 346
    */
 
   PROVIDE(__stack_base = (ORIGIN(RAM) + LENGTH(RAM)) & ~7);
-  PROVIDE(__stack = __stack_base); /* used by newlib _start */
+  PROVIDE(__stack = __stack_base);
 
   .heap_stack (NOLOAD) : ALIGN(4)
   {
-    PROVIDE(__heap_base = ABSOLUTE(.));
-    . = __stack_base - __heap_base;
+    PROVIDE(end = ABSOLUTE(.));
+    . = __stack_base - end;
   } >RAM
 
   ASSERT(SIZEOF(.heap_stack) >= MIN_HEAP_SIZE + MIN_STACK_SIZE, "Error: No room for heap and stack")
@@ -153,9 +161,6 @@ SECTIONS
     *(.vfp11_veneer)
     *(.v4_bx)
 
-    /* Non-ARM frame unwinding
-     * this comes from newlib as a zero-size input section */
-    *crtbegin.o(.eh_frame)
   }
 }
 

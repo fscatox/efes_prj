@@ -11,87 +11,78 @@
 extern "C" {
 #endif
 
-  /* CMSIS layer */
-  #include "stm32f4xx.h"
+#include "stm32f4xx.h"
+#include "stm32f4xx_ll_gpio.h"
 
-  /* STM32 LL layer */
-  #include "stm32f4xx_ll_bus.h"
-  #include "stm32f4xx_ll_cortex.h"
-  #include "stm32f4xx_ll_dma.h"
-  #include "stm32f4xx_ll_exti.h"
-  #include "stm32f4xx_ll_gpio.h"
-  #include "stm32f4xx_ll_pwr.h"
-  #include "stm32f4xx_ll_rcc.h"
-  #include "stm32f4xx_ll_system.h"
-  #include "stm32f4xx_ll_usart.h"
-  #include "stm32f4xx_ll_utils.h"
+/* Pinout */
 
-  /* Pinout */
+/* MCU push button and LED */
+#define B1_Pin LL_GPIO_PIN_13
+#define B1_GPIO_Port GPIOC
 
-  /* MCU push button and LED */
-  #define B1_Pin LL_GPIO_PIN_13
-  #define B1_GPIO_Port GPIOC
+#define LD2_Pin LL_GPIO_PIN_5
+#define LD2_GPIO_Port GPIOA
 
-  #define LD2_Pin LL_GPIO_PIN_5
-  #define LD2_GPIO_Port GPIOA
+/* FPGA */
 
-  /* FPGA */
+/* asynchronous reset */
+#define ASYNC_RST_N_Pin LL_GPIO_PIN_0
+#define ASYNC_RST_N_GPIO_Port GPIOC
 
-  /* asynchronous reset */
-  #define ASYNC_RST_N_Pin LL_GPIO_PIN_0
-  #define ASYNC_RST_N_GPIO_Port GPIOC
+/* SPI peripherals: ADC and PS/2 controller */
+#define SCLK_Pin LL_GPIO_PIN_10
+#define SCLK_GPIO_Port GPIOC
 
-  /* SPI peripherals: ADC and PS/2 controller */
-  #define SCLK_Pin LL_GPIO_PIN_10
-  #define SCLK_GPIO_Port GPIOC
+#define MISO_Pin LL_GPIO_PIN_11
+#define MISO_GPIO_Port GPIOC
 
-  #define MISO_Pin LL_GPIO_PIN_11
-  #define MISO_GPIO_Port GPIOC
+#define MOSI_Pin LL_GPIO_PIN_12
+#define MOSI_GPIO_Port GPIOC
 
-  #define MOSI_Pin LL_GPIO_PIN_12
-  #define MOSI_GPIO_Port GPIOC
+#define ADC_SS_N_Pin LL_GPIO_PIN_8
+#define ADC_SS_N_GPIO_Port GPIOC
 
-  #define ADC_SS_N_Pin LL_GPIO_PIN_8
-  #define ADC_SS_N_GPIO_Port GPIOC
+#define PS2_SS_N_Pin LL_GPIO_PIN_9
+#define PS2_SS_N_GPIO_Port GPIOC
 
-  #define PS2_SS_N_Pin LL_GPIO_PIN_9
-  #define PS2_SS_N_GPIO_Port GPIOC
+/* 7-Segment displays peripheral */
+#define SSEG_URX_Pin LL_GPIO_PIN_6
+#define SSEG_URX_GPIO_Port GPIOB
 
-  /* 7-Segment displays peripheral */
-  #define SSEG_URX_Pin LL_GPIO_PIN_6
-  #define SSEG_URX_GPIO_Port GPIOB
+/* Motor board */
+#define EN_Pin LL_GPIO_PIN_1
+#define EN_GPIO_Port GPIOC
 
-  /* Motor board */
-  #define EN_Pin LL_GPIO_PIN_1
-  #define EN_GPIO_Port GPIOC
+#define AP_Pin LL_GPIO_PIN_8
+#define AP_GPIO_Port GPIOA
 
-  #define AP_Pin LL_GPIO_PIN_8
-  #define AP_GPIO_Port GPIOA
+#define AN_Pin LL_GPIO_PIN_7
+#define AN_GPIO_Port GPIOA
 
-  #define AN_Pin LL_GPIO_PIN_7
-  #define AN_GPIO_Port GPIOA
+#define BP_Pin LL_GPIO_PIN_10
+#define BP_GPIO_Port GPIOA
 
-  #define BP_Pin LL_GPIO_PIN_10
-  #define BP_GPIO_Port GPIOA
+#define BN_Pin LL_GPIO_PIN_1
+#define BN_GPIO_Port GPIOB
 
-  #define BN_Pin LL_GPIO_PIN_1
-  #define BN_GPIO_Port GPIOB
+/* ST-Link */
+#define USART_TX_Pin LL_GPIO_PIN_2
+#define USART_TX_GPIO_Port GPIOA
 
-  /* ST-Link */
-  #define USART_TX_Pin LL_GPIO_PIN_2
-  #define USART_TX_GPIO_Port GPIOA
+#define USART_RX_Pin LL_GPIO_PIN_3
+#define USART_RX_GPIO_Port GPIOA
 
-  #define USART_RX_Pin LL_GPIO_PIN_3
-  #define USART_RX_GPIO_Port GPIOA
+#define SWDIO_Pin LL_GPIO_PIN_13
+#define SWDIO_GPIO_Port GPIOA
 
-  #define SWDIO_Pin LL_GPIO_PIN_13
-  #define SWDIO_GPIO_Port GPIOA
+#define SWCLK_Pin LL_GPIO_PIN_14
+#define SWCLK_GPIO_Port GPIOA
 
-  #define SWCLK_Pin LL_GPIO_PIN_14
-  #define SWCLK_GPIO_Port GPIOA
 
-  /* System configuration */
-  void systemClockConfig(void);
+/* Clock configuration */
+#define HCLK_FREQUENCY_HZ 64000000
+
+void systemClockConfig(void);
 
 #ifdef __cplusplus
 }

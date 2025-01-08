@@ -19,9 +19,6 @@ extern uintptr_t __data_vstart[];
 extern uintptr_t __data_lstart[];
 extern uintptr_t __data_size[];
 
-extern uintptr_t __bss_start[];
-extern uintptr_t __bss_size[];
-
 /* C/C++ runtime entry point */
 extern void _start(void) __NO_RETURN;
 
@@ -41,9 +38,9 @@ __NO_RETURN void Reset_Handler(void) {
   /* Initialize subsystems (FPU) */
   SystemInit();
 
-  /* Initialize data and bss sections into SRAM */
+  /* Initialize data section into SRAM
+   * (bss section is initialized by the runtime) */
   __builtin_memcpy(__data_vstart, __data_lstart, (size_t) __data_size);
-  __builtin_memset(__bss_start, 0, (size_t) __bss_size);
 
   /* C/C++ entry point */
   _start();
