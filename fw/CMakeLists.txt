@@ -35,6 +35,11 @@ target_link_options(${CMAKE_PROJECT_NAME} PRIVATE
         -Wl,--orphan-handling=warn
 )
 
+# Sane debugging paths
+cmake_path(NORMAL_PATH CMAKE_CURRENT_SOURCE_DIR OUTPUT_VARIABLE OLD_PREFIX)
+target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE
+        -ffile-prefix-map=${OLD_PREFIX}=.)
+
 # Add include directories
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
         ${cmsis_core_standard_SOURCE_DIR}/CMSIS/Core/Include
@@ -83,4 +88,3 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE
         ARM::NoSys
         ARM::Nano
 )
-target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE)
