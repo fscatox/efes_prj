@@ -14,31 +14,34 @@ set(CMAKE_TOOLCHAIN_FILE ${CMAKE_CURRENT_SOURCE_DIR}/cmake/armv7em-hard-fpv4sp.c
 project(fw C CXX ASM)
 
 # Compiler configuration
-set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD 23)
 set(CMAKE_C_EXTENSIONS ON)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_EXTENSIONS ON)
 
 # Enable compile command to ease indexing
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Fetch sdk
-include(cmake/sdk.cmake)
+# Locate external sources
+set(cmsis_core_standard_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib/CMSIS-Core/Standard)
+set(cmsis_core_device_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib/CMSIS-Core/Device)
+set(stm32_hal_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib/HAL)
+set(cougar_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib/Cougar)
 
 # Create project target
 add_executable(${CMAKE_PROJECT_NAME})
+
+# Sane debugging paths
+cmake_path(NORMAL_PATH CMAKE_CURRENT_SOURCE_DIR OUTPUT_VARIABLE OLD_PREFIX)
+target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE
+        -ffile-prefix-map=${OLD_PREFIX}=.)
 
 # Add custom linker script
 target_link_options(${CMAKE_PROJECT_NAME} PRIVATE
         -T "${CMAKE_CURRENT_SOURCE_DIR}/stm32f401xe.ld"
         -Wl,--orphan-handling=warn
 )
-
-# Sane debugging paths
-cmake_path(NORMAL_PATH CMAKE_CURRENT_SOURCE_DIR OUTPUT_VARIABLE OLD_PREFIX)
-target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE
-        -ffile-prefix-map=${OLD_PREFIX}=.)
 
 # Add include directories
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
@@ -50,6 +53,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 
 # Add project sources
 file(GLOB_RECURSE core_src CONFIGURE_DEPENDS "core/src/*.c*")
+
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         ${cmsis_core_device_SOURCE_DIR}/Source/Templates/system_stm32f4xx.c
         ${stm32_hal_SOURCE_DIR}/Src/stm32f4xx_ll_exti.c

@@ -1,0 +1,12 @@
+[submodule "fw/lib/CMSIS-Core/Standard"]
+	path = fw/lib/CMSIS-Core/Standard
+	url = https://github.com/ARM-software/CMSIS_5.git
+[submodule "fw/lib/CMSIS-Core/Device"]
+	path = fw/lib/CMSIS-Core/Device
+	url = https://github.com/STMicroelectronics/cmsis-device-f4.git
+[submodule "fw/lib/HAL"]
+	path = fw/lib/HAL
+	url = https://github.com/STMicroelectronics/stm32f4xx-hal-driver.git
+[submodule "fw/lib/Cougar"]
+	path = fw/lib/Cougar
+	url = https://github.com/hosseinmoein/Cougar.git
