@@ -1,18 +1,21 @@
 /**
- * @file     UartTx.cpp
+ * @file     UartTx.tpp
  * @author   Fabio Scatozza <s315216@studenti.polito.it>
  * @date     20.01.2025
  */
 
-#include "UartTx.h"
+#ifndef UARTTX_TPP
+#define UARTTX_TPP
 
 #include <cerrno>
 #include <fcntl.h>
 #include <unistd.h>
+#include <algorithm>
 
 #include "stm32f4xx_utils.h"
 
-UartTx::UartTx(USART_TypeDef *usart, DMA_TypeDef *dma)
+template <size_t BUF_SIZE>
+UartTx<BUF_SIZE>::UartTx(USART_TypeDef *usart, DMA_TypeDef *dma)
     : _usart(usart), _dma(dma), _gpio(nullptr),
       _usart_init{.TransferDirection = LL_USART_DIRECTION_TX,
                   .HardwareFlowControl = LL_USART_HWCONTROL_NONE},
@@ -29,28 +32,30 @@ UartTx::UartTx(USART_TypeDef *usart, DMA_TypeDef *dma)
       _gpio_init{.Mode = LL_GPIO_MODE_ALTERNATE,
                  .Speed = LL_GPIO_SPEED_FREQ_LOW,
                  .OutputType = LL_GPIO_OUTPUT_PUSHPULL,
-                 .Pull = LL_GPIO_PULL_NO} {
-  _buf.reserve(BUF_SIZE);
-}
+                 .Pull = LL_GPIO_PULL_NO} {}
 
-void UartTx::setPin(GPIO_TypeDef *gpio, uint32_t pin, uint32_t af) {
+template <size_t BUF_SIZE>
+void UartTx<BUF_SIZE>::setPin(GPIO_TypeDef *gpio, uint32_t pin, uint32_t af) {
   _gpio = gpio;
   _gpio_init.Pin = pin;
   _gpio_init.Alternate = af;
 }
 
-void UartTx::setFrame(uint32_t data_width, uint32_t parity, uint32_t stop) {
+template <size_t BUF_SIZE>
+void UartTx<BUF_SIZE>::setFrame(uint32_t data_width, uint32_t parity, uint32_t stop) {
   _usart_init.DataWidth = data_width;
   _usart_init.Parity = parity;
   _usart_init.StopBits = stop;
 }
 
-void UartTx::setBaudRate(uint32_t baud_rate, uint32_t over_sampling) {
+template <size_t BUF_SIZE>
+void UartTx<BUF_SIZE>::setBaudRate(uint32_t baud_rate, uint32_t over_sampling) {
   _usart_init.BaudRate = baud_rate;
   _usart_init.OverSampling = over_sampling;
 }
 
-void UartTx::setDMATransfer(uint32_t stream, uint32_t ch,
+template <size_t BUF_SIZE>
+void UartTx<BUF_SIZE>::setDMATransfer(uint32_t stream, uint32_t ch,
                             uint32_t stream_priority) {
   _dma_stream = stream;
   _dma_init.Priority = stream_priority;
@@ -58,7 +63,8 @@ void UartTx::setDMATransfer(uint32_t stream, uint32_t ch,
   _dma_init.MemoryOrM2MDstAddress = reinterpret_cast<uintptr_t>(_buf.data());
 }
 
-int UartTx::open(const OFile &ofile) {
+template <size_t BUF_SIZE>
+int UartTx<BUF_SIZE>::open(const OFile &ofile) {
   if (ofile.mode != FWRITE)
     return -EINVAL;
 
@@ -81,11 +87,13 @@ int UartTx::open(const OFile &ofile) {
   return 0;
 }
 
-int UartTx::close([[maybe_unused]] const OFile &ofile) {
+template <size_t BUF_SIZE>
+int UartTx<BUF_SIZE>::close([[maybe_unused]] const OFile &ofile) {
   return -ENOTSUP;
 }
 
-off_t UartTx::llseek(OFile &ofile, off_t offset, int whence) {
+template <size_t BUF_SIZE>
+off_t UartTx<BUF_SIZE>::llseek(OFile &ofile, off_t offset, int whence) {
   switch (whence) {
   case SEEK_SET:
     return ofile.pos = offset;
@@ -96,7 +104,8 @@ off_t UartTx::llseek(OFile &ofile, off_t offset, int whence) {
   }
 }
 
-ssize_t UartTx::write(const OFile &ofile, const void *buf, size_t count,
+template <size_t BUF_SIZE>
+ssize_t UartTx<BUF_SIZE>::write(const OFile &ofile, const void *buf, size_t count,
                       off_t &pos) {
   auto cbuf = static_cast<Buffer::const_pointer>(buf);
   count = std::min(count, BUF_SIZE);
@@ -109,7 +118,7 @@ ssize_t UartTx::write(const OFile &ofile, const void *buf, size_t count,
   }
 
   /* Store the data to send in a contiguous local buffer */
-  _buf.assign(cbuf, cbuf + count);
+  std::copy_n(cbuf, count, _buf.data());
 
   /* Configure DMA transfer */
   LL_DMA_SetDataLength(_dma, _dma_stream, count);
@@ -119,3 +128,5 @@ ssize_t UartTx::write(const OFile &ofile, const void *buf, size_t count,
   pos += count;
   return count;
 }
+
+#endif // UARTTTX_TPP

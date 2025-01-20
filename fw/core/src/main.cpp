@@ -19,7 +19,7 @@
 
 #include "FileManager.hpp"
 #include "PushButton.h"
-#include "UartTx.h"
+#include "UartTx.hpp"
 
 #include <cstdio>
 
@@ -29,12 +29,12 @@ FileManager fm(Node{"st_link_uart_tx", st_link_uart_tx});
 
 void toggleLed() {
   LL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
-  printf("Toggle LED\n\r");
+  printf("Toggle LED\r\n");
 }
 
 void clearLed() {
   LL_GPIO_ResetOutputPin(LD2_GPIO_Port, LD2_Pin);
-  printf("Clear LED\n\r");
+  printf("Clear LED\r\n");
 }
 
 PushButton ubutton(B1_GPIO_Port, B1_Pin, toggleLed, clearLed);
@@ -110,60 +110,47 @@ void systemClockConfig() {
   LL_SetSystemCoreClock(HCLK_FREQUENCY_HZ);
 }
 
-/*
- * System calls for filesystem access
- * (name mangling disabled to link with newlib)
- */
-
-#include <cerrno>
-#undef errno
-
-#define RET_ERRNO(x)    \
-  do {                  \
-    if ((x) < 0) {      \
-      errno = -(x);     \
-      return -1;        \
-    }                   \
-    return x;           \
-  } while (false)
-
-extern "C" {
-extern int errno;
-
 int _close(int fd) {
   const auto ret = fm.close(fd);
   RET_ERRNO(ret);
 }
+
 int _fstat(int fd, struct stat *st) {
   const auto ret = fm.fstat(fd, st);
   RET_ERRNO(ret);
 }
+
 int _link(const char *old_name, const char *new_name) {
   const auto ret = fm.link(old_name, new_name);
   RET_ERRNO(ret);
 }
+
 off_t _lseek(int fd, off_t offset, int whence) {
   const auto ret = fm.lseek(fd, offset, whence);
   RET_ERRNO(ret);
 }
+
 int _open(const char *name, int flags, mode_t mode) {
   const auto ret = fm.open(name, flags, mode);
   RET_ERRNO(ret);
 }
+
 int _read(int fd, void *buf, size_t count) {
   const auto ret = fm.read(fd, buf, count);
   RET_ERRNO(ret);
 }
+
 int _stat(const char *name, struct stat *st) {
   const auto ret = fm.stat(name, st);
   RET_ERRNO(ret);
 }
+
 int _unlink(const char *name) {
   const auto ret = fm.unlink(name);
   RET_ERRNO(ret);
 }
+
 int _write(int fd, const void *buf, size_t count) {
   const auto ret = fm.write(fd, buf, count);
   RET_ERRNO(ret);
-}
 }

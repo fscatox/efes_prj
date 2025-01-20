@@ -1,11 +1,11 @@
 /**
- * @file     UartTx.h
+ * @file     UartTx.hpp
  * @author   Fabio Scatozza <s315216@studenti.polito.it>
  * @date     20.01.2025
  */
 
-#ifndef UARTTX_H
-#define UARTTX_H
+#ifndef UARTTX_HPP
+#define UARTTX_HPP
 
 #include "IFile.h"
 
@@ -13,13 +13,11 @@
 #include "stm32f4xx_ll_gpio.h"
 #include "stm32f4xx_ll_usart.h"
 
-#include <atomic>
-#include <vector>
+#include <array>
 
+template <size_t BUF_SIZE = 512>
 class UartTx final : public IFile {
 public:
-  static constexpr size_t BUF_SIZE = 512;
-
   UartTx(USART_TypeDef *usart, DMA_TypeDef *dma);
 
   void setPin(GPIO_TypeDef *gpio, uint32_t pin, uint32_t af);
@@ -45,8 +43,10 @@ private:
   LL_DMA_InitTypeDef _dma_init;
   LL_GPIO_InitTypeDef _gpio_init;
 
-  using Buffer = std::vector<uint8_t>;
+  using Buffer = std::array<uint8_t, BUF_SIZE>;
   Buffer _buf;
 };
 
-#endif // UARTTX_H
+#include "UartTx.tpp"
+
+#endif // UARTTX_HPP
