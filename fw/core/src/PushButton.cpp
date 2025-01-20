@@ -5,34 +5,28 @@
  */
 
 #include "PushButton.h"
-#include "TimeBase.h"
 
-#include "stm32f401xe.h"
+#include "stm32f4xx_utils.h"
 #include "stm32f4xx_ll_exti.h"
-#include "stm32f4xx_ll_system.h"
 #include "stm32f4xx_ll_gpio.h"
-
-uint32_t PushButton::_portNo() const {
-  auto gpio_base = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(_port));
-  return (gpio_base - AHB1PERIPH_BASE) >> 10;
-}
+#include "stm32f4xx_ll_system.h"
 
 uint32_t PushButton::_lineNo() const {
   return POSITION_VAL(_pin_msk);
 }
 
-PushButton::Edge_t PushButton::_trailing() const {
-  return static_cast<Edge_t>(!_leading);
+PushButton::Edge PushButton::_trailing() const {
+  return static_cast<Edge>(!_leading);
 }
 
-void PushButton::_enableTrig(Edge_t edge) const {
+void PushButton::_enableTrig(Edge edge) const {
   if (edge == FALLING)
     LL_EXTI_EnableFallingTrig_0_31(_pin_msk);
   else
     LL_EXTI_EnableRisingTrig_0_31(_pin_msk);
 }
 
-void PushButton::_disableTrig(Edge_t edge) const {
+void PushButton::_disableTrig(Edge edge) const {
   if (edge == FALLING)
     LL_EXTI_DisableFallingTrig_0_31(_pin_msk);
   else
@@ -40,25 +34,24 @@ void PushButton::_disableTrig(Edge_t edge) const {
 }
 
 PushButton::PushButton(GPIO_TypeDef *port, uint32_t pin_msk,
-                       Callback_t shortPressCbk, Callback_t longPressCbk,
-                       Edge_t leading, TickType_t reject_ms, TickType_t press_ms)
-    : _port(port), _pin_msk(pin_msk),
-      _shortPressCbk(shortPressCbk), _longPressCbk(longPressCbk),
-      _leading(leading), _reject_ms(reject_ms), _press_ms(press_ms),
-      _state(RELEASED) {}
+                       Callback shortPressCbk, Callback longPressCbk,
+                       Edge leading, TickType_t reject_ms, TickType_t press_ms)
+    : _port(port), _pin_msk(pin_msk), _shortPressCbk(shortPressCbk),
+      _longPressCbk(longPressCbk), _leading(leading), _reject_ms(reject_ms),
+      _press_ms(press_ms), _state(RELEASED) {}
 
 void PushButton::init() const {
   auto line_no = _lineNo();
-  auto port_no = _portNo();
+  auto port_no = GPIO_getPortNo(_port);
 
   uint32_t ll_syscfg_exti_line =
-    ((0x000FU << ((line_no % 4) << 2)) << 16) | (line_no >> 2);
+      ((0x000FU << ((line_no % 4) << 2)) << 16) | (line_no >> 2);
 
   /* Remap GPIO as external interrupt line */
   LL_SYSCFG_SetEXTISource(port_no, ll_syscfg_exti_line);
 }
 
-IRQn_Type PushButton::irqn() const {
+IRQn_Type PushButton::_irqn() const {
   if (_lineNo() < 5)
     return static_cast<IRQn_Type>(EXTI0_IRQn + _lineNo());
   if (_lineNo() < 10)
@@ -68,14 +61,17 @@ IRQn_Type PushButton::irqn() const {
 }
 
 void PushButton::_maskTrig() const {
-  NVIC_DisableIRQ(irqn());
+  NVIC_DisableIRQ(_irqn());
 }
 
 void PushButton::_unmaskTrig() const {
-  NVIC_EnableIRQ(irqn());
+  NVIC_EnableIRQ(_irqn());
 }
 
-void PushButton::enableIt() const {
+void PushButton::enableIt(uint32_t preempt, uint32_t sub) const {
+  NVIC_SetPriority(_irqn(),
+    NVIC_EncodePriority(NVIC_GetPriorityGrouping(), preempt, sub));
+  _unmaskTrig();
   LL_EXTI_EnableIT_0_31(_pin_msk);
   _enableTrig(_leading);
 }
@@ -84,7 +80,7 @@ void PushButton::extiHandler() {
   if (!LL_EXTI_ReadFlag_0_31(_pin_msk))
     return;
 
-  _trig_tick = ms_ticks;
+  _trig_tick = sysTickTimeMs();
 
   if (_state == RELEASED) {
     _state = LTRIG;
@@ -99,7 +95,8 @@ void PushButton::extiHandler() {
 
 void PushButton::run() {
 
-  if ((_state == LTRIG || _state == TTRIG) && (ms_ticks - _trig_tick > _reject_ms)) {
+  if ((_state == LTRIG || _state == TTRIG) &&
+      (sysTickTimeMs() - _trig_tick > _reject_ms)) {
     bool level = LL_GPIO_IsInputPinSet(_port, _pin_msk);
 
     if (_state == LTRIG) {
@@ -124,7 +121,7 @@ void PushButton::run() {
   }
 
   _maskTrig();
-  if ((_state == PRESSED) && (ms_ticks - _leading_tick > _press_ms)) {
+  if ((_state == PRESSED) && (sysTickTimeMs() - _leading_tick > _press_ms)) {
     _disableTrig(_trailing());
     _unmaskTrig();
 
@@ -134,4 +131,3 @@ void PushButton::run() {
   } else
     _unmaskTrig();
 }
-

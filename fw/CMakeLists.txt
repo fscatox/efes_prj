@@ -27,15 +27,20 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(cmsis_core_standard_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib/CMSIS-Core/Standard)
 set(cmsis_core_device_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib/CMSIS-Core/Device)
 set(stm32_hal_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib/HAL)
-set(cougar_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib/Cougar)
 
 # Create project target
 add_executable(${CMAKE_PROJECT_NAME})
 
+# Additional options
+target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE
+        -Wno-missing-field-initializers
+)
+
 # Sane debugging paths
 cmake_path(NORMAL_PATH CMAKE_CURRENT_SOURCE_DIR OUTPUT_VARIABLE OLD_PREFIX)
 target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE
-        -ffile-prefix-map=${OLD_PREFIX}=.)
+        -ffile-prefix-map=${OLD_PREFIX}=.
+)
 
 # Add custom linker script
 target_link_options(${CMAKE_PROJECT_NAME} PRIVATE
@@ -48,10 +53,12 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
         ${cmsis_core_standard_SOURCE_DIR}/CMSIS/Core/Include
         ${cmsis_core_device_SOURCE_DIR}/Include
         ${stm32_hal_SOURCE_DIR}/Inc
+        sys/inc
         core/inc
 )
 
 # Add project sources
+file(GLOB_RECURSE sys_src CONFIGURE_DEPENDS "sys/src/*.c*")
 file(GLOB_RECURSE core_src CONFIGURE_DEPENDS "core/src/*.c*")
 
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
@@ -65,6 +72,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         ${stm32_hal_SOURCE_DIR}/Src/stm32f4xx_ll_tim.c
         ${stm32_hal_SOURCE_DIR}/Src/stm32f4xx_ll_usart.c
         ${stm32_hal_SOURCE_DIR}/Src/stm32f4xx_ll_utils.c
+        ${stm32_hal_SOURCE_DIR}/Src/stm32f4xx_ll_dma.c
+        ${sys_src}
         ${core_src}
 )
 

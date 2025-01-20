@@ -7,6 +7,3 @@
 [submodule "fw/lib/HAL"]
 	path = fw/lib/HAL
 	url = https://github.com/STMicroelectronics/stm32f4xx-hal-driver.git
-[submodule "fw/lib/Cougar"]
-	path = fw/lib/Cougar
-	url = https://github.com/hosseinmoein/Cougar.git
