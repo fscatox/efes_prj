@@ -20,12 +20,11 @@ class IFile {
 public:
   virtual ~IFile() = default;
 
-  virtual int open(const OFile &ofile);
-  virtual int close(const OFile &ofile);
+  virtual int open(OFile &ofile);
+  virtual int close(OFile &ofile);
   virtual off_t llseek(OFile &ofile, off_t offset, int whence);
-  virtual ssize_t read(const OFile &ofile, void *buf, size_t count, off_t &pos);
-  virtual ssize_t write(const OFile &ofile, const void *buf, size_t count,
-                        off_t &pos);
+  virtual ssize_t read(OFile &ofile, char *buf, size_t count, off_t &pos);
+  virtual ssize_t write(OFile &ofile, const char *buf, size_t count, off_t &pos);
 
 protected:
   IFile() = default;

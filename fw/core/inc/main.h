@@ -7,45 +7,26 @@
 #ifndef MAIN_H
 #define MAIN_H
 
-extern "C" {
-
-#include <cerrno>
-#include <sys/types.h>
-
-/*
- * Clock configuration
- */
-
-#define HCLK_FREQUENCY_HZ 64000000
-
-void systemClockConfig();
+#include "FileManager.hpp"
+#include "HwAlarm.hpp"
+#include "PushButton.hpp"
 
 /*
- * System calls for filesystem access
+ * Lazy construction of the file manager
+ * (the function members are invoked as implementation of system calls)
  */
 
-#undef errno
-extern int errno;
+using FileManagerType = FileManager<1>;
+FileManagerType &File_Manager();
 
-#define RET_ERRNO(x)  \
-  do {                \
-    if ((x) < 0) {    \
-      errno = -(x);   \
-      return -1;      \
-    }                 \
-    return x;         \
-  } while (false)
+/*
+ * Lazy construction of resources requiring exception handling
+ * (the function members are invoked as implementation of interrupt handlers)
+ */
+using HwAlarmType = HwAlarm<TIM9_BASE>;
+HwAlarmType &Hw_Alarm();
 
-int _close(int fd);
-int _fstat(int fd, struct stat *st);
-int _link(const char *old_name, const char *new_name);
-off_t _lseek(int fd, off_t offset, int whence);
-int _open(const char *name, int flags, mode_t mode);
-int _read(int fd, void *buf, size_t count);
-int _stat(const char *name, struct stat *st);
-int _unlink(const char *name);
-int _write(int fd, const void *buf, size_t count);
+using PushButtonType = PushButton<HwAlarmType>;
+PushButtonType &Push_Button();
 
-}
-
-#endif // MAIN_H
+#endif //MAIN_H

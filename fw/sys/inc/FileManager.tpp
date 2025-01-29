@@ -11,7 +11,7 @@
 #include <cerrno>
 #include <cstring>
 
-template <uint8_t N_NODES, uint8_t NMAX_FD>
+template <size_t N_NODES, int NMAX_FD>
 template <typename... Args>
 constexpr FileManager<N_NODES, NMAX_FD>::FileManager(const Args &...args)
     : _nodes{args...}, _files{} {
@@ -20,7 +20,7 @@ constexpr FileManager<N_NODES, NMAX_FD>::FileManager(const Args &...args)
   static_assert(NMAX_FD > NRESERVED_FD, "OFileTable is too small");
 }
 
-template <uint8_t N_NODES, uint8_t NMAX_FD>
+template <size_t N_NODES, int NMAX_FD>
 typename std::array<Node, N_NODES>::const_pointer
 FileManager<N_NODES, NMAX_FD>::_getNode(const char *name) const {
   auto it = std::find_if(_nodes.begin(), _nodes.end(), [&](const Node &node) {
@@ -29,7 +29,7 @@ FileManager<N_NODES, NMAX_FD>::_getNode(const char *name) const {
   return it == _nodes.cend() ? nullptr : &(*it);
 }
 
-template <uint8_t N_NODES, uint8_t NMAX_FD>
+template <size_t N_NODES, int NMAX_FD>
 int FileManager<N_NODES, NMAX_FD>::stdStreamAttach(int fd, const char *name,
                                                    int flags) {
 
@@ -54,12 +54,15 @@ int FileManager<N_NODES, NMAX_FD>::stdStreamAttach(int fd, const char *name,
   return ret;
 }
 
-template <uint8_t N_NODES, uint8_t NMAX_FD>
+template <size_t N_NODES, int NMAX_FD>
 int FileManager<N_NODES, NMAX_FD>::open(const char *name, int flags,
-                                        mode_t mode) {
+                                        [[maybe_unused]] mode_t mode) {
+
+  /* File creation is not supported */
+  flags &= ~O_CREAT;
 
   /* Fail if unsupported flags are set */
-  if ((flags & ~VALID_OPEN_FLAGS) || mode)
+  if (flags & ~VALID_OPEN_FLAGS)
     return -EINVAL;
 
   auto node = _getNode(name);
@@ -76,8 +79,7 @@ int FileManager<N_NODES, NMAX_FD>::open(const char *name, int flags,
       .node = node,
       .ofile = {
           .mode = (flags & O_ACCMODE) + 1, /* FREAD, FWRITE, or FREAD|FWRITE */
-          .flags = flags & ~O_ACCMODE,     /* FAPPEND, or FNONBLOCK */
-          .pos = 0,
+          .flags = flags & ~O_ACCMODE,     /* FTRUNC, FAPPEND, or FNONBLOCK */
       }};
 
   /* Invoke driver's open() and free _files' entry in case of error */
@@ -91,7 +93,7 @@ int FileManager<N_NODES, NMAX_FD>::open(const char *name, int flags,
   return std::distance(_files.begin(), it);
 }
 
-template <uint8_t N_NODES, uint8_t NMAX_FD>
+template <size_t N_NODES, int NMAX_FD>
 int FileManager<N_NODES, NMAX_FD>::close(int fd) {
   if (fd < 0 || fd >= NMAX_FD || !_files[fd].node)
     return -EBADF;
@@ -102,7 +104,7 @@ int FileManager<N_NODES, NMAX_FD>::close(int fd) {
   return ret;
 }
 
-template <uint8_t N_NODES, uint8_t NMAX_FD>
+template <size_t N_NODES, int NMAX_FD>
 int FileManager<N_NODES, NMAX_FD>::stat(const char *name, struct stat *st) {
   auto node = _getNode(name);
   if (!node)
@@ -114,7 +116,7 @@ int FileManager<N_NODES, NMAX_FD>::stat(const char *name, struct stat *st) {
   return 0;
 }
 
-template <uint8_t N_NODES, uint8_t NMAX_FD>
+template <size_t N_NODES, int NMAX_FD>
 int FileManager<N_NODES, NMAX_FD>::fstat(int fd, struct stat *st) {
   if (fd < 0 || fd >= NMAX_FD || !_files[fd].node)
     return -EBADF;
@@ -125,18 +127,18 @@ int FileManager<N_NODES, NMAX_FD>::fstat(int fd, struct stat *st) {
   return 0;
 }
 
-template <uint8_t N_NODES, uint8_t NMAX_FD>
+template <size_t N_NODES, int NMAX_FD>
 int FileManager<N_NODES, NMAX_FD>::link([[maybe_unused]] const char *old_name,
                                         [[maybe_unused]] const char *new_name) {
   return -ENOTSUP;
 }
 
-template <uint8_t N_NODES, uint8_t NMAX_FD>
+template <size_t N_NODES, int NMAX_FD>
 int FileManager<N_NODES, NMAX_FD>::unlink([[maybe_unused]] const char *name) {
   return -ENOTSUP;
 }
 
-template <uint8_t N_NODES, uint8_t NMAX_FD>
+template <size_t N_NODES, int NMAX_FD>
 off_t FileManager<N_NODES, NMAX_FD>::lseek(int fd, off_t offset, int whence) {
   if (fd < 0 || fd >= NMAX_FD || !_files[fd].node)
     return -EBADF;
@@ -144,25 +146,26 @@ off_t FileManager<N_NODES, NMAX_FD>::lseek(int fd, off_t offset, int whence) {
   return _files[fd].node->cdev.llseek(_files[fd].ofile, offset, whence);
 }
 
-template <uint8_t N_NODES, uint8_t NMAX_FD>
+template <size_t N_NODES, int NMAX_FD>
 int FileManager<N_NODES, NMAX_FD>::read(int fd, void *buf, size_t count) {
   if (fd < 0 || fd >= NMAX_FD || !_files[fd].node ||
       !(_files[fd].ofile.mode & FREAD))
     return -EBADF;
 
-  return _files[fd].node->cdev.read(_files[fd].ofile, buf, count,
-                               _files[fd].ofile.pos);
+  return _files[fd].node->cdev.read(_files[fd].ofile, static_cast<char *>(buf),
+                                    count, _files[fd].ofile.pos);
 }
 
-template <uint8_t N_NODES, uint8_t NMAX_FD>
+template <size_t N_NODES, int NMAX_FD>
 int FileManager<N_NODES, NMAX_FD>::write(int fd, const void *buf,
                                          size_t count) {
   if (fd < 0 || fd >= NMAX_FD || !_files[fd].node ||
       !(_files[fd].ofile.mode & FWRITE))
     return -EBADF;
 
-  return _files[fd].node->cdev.write(_files[fd].ofile, buf, count,
-                                _files[fd].ofile.pos);
+  return _files[fd].node->cdev.write(_files[fd].ofile,
+                                     static_cast<const char *>(buf), count,
+                                     _files[fd].ofile.pos);
 }
 
 #endif // FILEMANAGER_TPP

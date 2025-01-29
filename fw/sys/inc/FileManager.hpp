@@ -15,7 +15,8 @@
 #include "IFile.h"
 
 #define NRESERVED_FD (STDERR_FILENO + 1)
-#define VALID_OPEN_FLAGS ((O_RDONLY | O_WRONLY | O_RDWR) | (O_APPEND | O_NONBLOCK))
+#define VALID_OPEN_FLAGS ((O_RDONLY | O_WRONLY | O_RDWR) |    \
+                          (O_TRUNC | O_APPEND | O_NONBLOCK))
 
 /* Binds a filename to a resource with IFile interface */
 struct Node {
@@ -23,7 +24,7 @@ struct Node {
   IFile &cdev;
 };
 
-template <uint8_t N_NODES, uint8_t NMAX_FD = N_NODES + NRESERVED_FD>
+template <size_t N_NODES, int NMAX_FD = N_NODES + NRESERVED_FD>
 class FileManager {
 public:
   /* Construct NodeTable, inferring N_NODES */

@@ -5,72 +5,71 @@
  */
 
 #include "main.h"
+#include "debug.h"
+#include "gpio.h"
 
-#include "stm32f4xx.h"
 #include "stm32f4xx_ll_bus.h"
-#include "stm32f4xx_ll_gpio.h"
 #include "stm32f4xx_ll_pwr.h"
 #include "stm32f4xx_ll_rcc.h"
 #include "stm32f4xx_ll_system.h"
 #include "stm32f4xx_ll_utils.h"
 
-#include "core.h"
-#include "gpio.h"
-
-#include "FileManager.hpp"
-#include "PushButton.h"
 #include "UartTx.hpp"
 
-#include <cstdio>
+using namespace std::chrono_literals;
 
-UartTx st_link_uart_tx(USART2, DMA1);
+/* Lazy construction of character devices */
+using StLinkUartTxType = UartTx<>;
+static StLinkUartTxType &St_Link_Uart_Tx();
 
-FileManager fm(Node{"st_link_uart_tx", st_link_uart_tx});
-
-void toggleLed() {
-  LL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
-  printf("Toggle LED\r\n");
-}
-
-void clearLed() {
-  LL_GPIO_ResetOutputPin(LD2_GPIO_Port, LD2_Pin);
-  printf("Clear LED\r\n");
-}
-
-PushButton ubutton(B1_GPIO_Port, B1_Pin, toggleLed, clearLed);
-
-extern "C" void EXTI15_10_IRQHandler() { ubutton.extiHandler(); }
+/* Platform configuration */
+static void systemClockConfig();
 
 [[noreturn]] int main() {
 
   /* Configure system clock tree */
   systemClockConfig();
 
-  /* Start systick time base */
-  sysTickInit();
-
   /* Initialize GPIO ports */
-  gpioInit();
+  gpio::init();
+
+  /* Initialize logging facility */
+  St_Link_Uart_Tx().setPin(USART_TX_GPIO_Port, USART_TX_Pin, USART_TX_Alternate);
+  St_Link_Uart_Tx().setFrame(LL_USART_PARITY_NONE, LL_USART_STOPBITS_1);
+  St_Link_Uart_Tx().setBaudRate(115200, LL_USART_OVERSAMPLING_16);
+  St_Link_Uart_Tx().setDMATransfer(LL_DMA_STREAM_6, LL_DMA_CHANNEL_4);
+  File_Manager().stdStreamAttach(STDERR_FILENO, "st_link_uart_tx");
+  File_Manager().stdStreamAttach(STDOUT_FILENO, "st_link_uart_tx");
+  PRINTD("Logging facility running ...");
+
+  /* Hardware timer: ticks @ 64 kHz, (2 channels, 16 bit) */
+  Hw_Alarm().init(15625ns);
 
   /* Initialize push button */
-  ubutton.init();
+  Push_Button().init();
+  Push_Button().enable();
 
-  /* Initialize device drivers */
-  st_link_uart_tx.setPin(USART_TX_GPIO_Port, USART_TX_Pin, LL_GPIO_AF_7);
-  st_link_uart_tx.setFrame(LL_USART_DATAWIDTH_8B, LL_USART_PARITY_NONE, LL_USART_STOPBITS_1);
-  st_link_uart_tx.setBaudRate(115200, LL_USART_OVERSAMPLING_16);
-  st_link_uart_tx.setDMATransfer(LL_DMA_STREAM_6, LL_DMA_CHANNEL_4);
-  fm.stdStreamAttach(STDOUT_FILENO, "st_link_uart_tx");
+  /*
+   * Initialize device drivers
+   */
 
-  /* Configure peripheral interrupts */
-  ubutton.enableIt();
+  // /* sseg displays peripheral over USART1 */
+  // sseg_displays.setPin(SSEG_URX_GPIO_Port, SSEG_URX_Pin, SSEG_URX_Alternate);
+  // sseg_displays.setFrame(LL_USART_PARITY_EVEN, LL_USART_STOPBITS_1);
+  // sseg_displays.setBaudRate(115200, LL_USART_OVERSAMPLING_16);
+  // sseg_displays.setDMATransfer(LL_DMA_STREAM_7, LL_DMA_CHANNEL_4);
+  // sseg_displays.setDisplay(SSEG_DISPLAYS_DISP_NO);
 
   while (true) {
-    ubutton.run();
+    if (Push_Button().shortPress())
+      PRINTD("Short press!");
+    else if (Push_Button().longPress())
+      PRINTD("Long press!");
   }
 }
 
-void systemClockConfig() {
+static void systemClockConfig() {
+  const uint32_t HCLK_FREQUENCY_HZ = 64000000;
 
   /* On reset, the 16 MHz internal RC oscillator is selected.
    * Enable clock to power interface and system configuration controller */
@@ -110,47 +109,24 @@ void systemClockConfig() {
   LL_SetSystemCoreClock(HCLK_FREQUENCY_HZ);
 }
 
-int _close(int fd) {
-  const auto ret = fm.close(fd);
-  RET_ERRNO(ret);
+static StLinkUartTxType &St_Link_Uart_Tx() {
+  static StLinkUartTxType obj(USART2, DMA1);
+  return obj;
 }
 
-int _fstat(int fd, struct stat *st) {
-  const auto ret = fm.fstat(fd, st);
-  RET_ERRNO(ret);
+FileManagerType &File_Manager() {
+  static FileManagerType fm{
+    Node{"st_link_uart_tx", St_Link_Uart_Tx()}
+  };
+  return fm;
 }
 
-int _link(const char *old_name, const char *new_name) {
-  const auto ret = fm.link(old_name, new_name);
-  RET_ERRNO(ret);
+HwAlarmType &Hw_Alarm() {
+  static HwAlarmType obj;
+  return obj;
 }
 
-off_t _lseek(int fd, off_t offset, int whence) {
-  const auto ret = fm.lseek(fd, offset, whence);
-  RET_ERRNO(ret);
-}
-
-int _open(const char *name, int flags, mode_t mode) {
-  const auto ret = fm.open(name, flags, mode);
-  RET_ERRNO(ret);
-}
-
-int _read(int fd, void *buf, size_t count) {
-  const auto ret = fm.read(fd, buf, count);
-  RET_ERRNO(ret);
-}
-
-int _stat(const char *name, struct stat *st) {
-  const auto ret = fm.stat(name, st);
-  RET_ERRNO(ret);
-}
-
-int _unlink(const char *name) {
-  const auto ret = fm.unlink(name);
-  RET_ERRNO(ret);
-}
-
-int _write(int fd, const void *buf, size_t count) {
-  const auto ret = fm.write(fd, buf, count);
-  RET_ERRNO(ret);
+PushButtonType &Push_Button() {
+  static PushButtonType obj {B1_GPIO_Port, B1_Pin, Hw_Alarm()};
+  return obj;
 }

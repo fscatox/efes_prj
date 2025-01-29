@@ -1,15 +1,15 @@
 /**
  * @file     gpio.h
  * @author   Fabio Scatozza <s315216@studenti.polito.it>
- * @date     06.01.2025
+ * @date     23.01.2025
  */
 
 #ifndef GPIO_H
 #define GPIO_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include "stm32f4xx_ll_gpio.h"
+
+namespace gpio {
 
 /*
  * Pinout
@@ -46,6 +46,7 @@ extern "C" {
 
 /* 7-Segment displays peripheral */
 #define SSEG_URX_Pin LL_GPIO_PIN_6
+#define SSEG_URX_Alternate LL_GPIO_AF_7
 #define SSEG_URX_GPIO_Port GPIOB
 
 /* Motor board */
@@ -66,6 +67,7 @@ extern "C" {
 
 /* ST-Link */
 #define USART_TX_Pin LL_GPIO_PIN_2
+#define USART_TX_Alternate LL_GPIO_AF_7
 #define USART_TX_GPIO_Port GPIOA
 
 #define USART_RX_Pin LL_GPIO_PIN_3
@@ -77,11 +79,12 @@ extern "C" {
 #define SWCLK_Pin LL_GPIO_PIN_14
 #define SWCLK_GPIO_Port GPIOA
 
-/* Initialize used and unused pins */
-void gpioInit(void);
+int getPortNo(const GPIO_TypeDef *gpio);
 
-#ifdef __cplusplus
+void enableClock(const GPIO_TypeDef *gpio);
+
+void init();
+
 }
-#endif
 
-#endif // GPIO_H
+#endif //GPIO_H

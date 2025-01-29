@@ -92,6 +92,7 @@ target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
         INSTRUCTION_CACHE_ENABLE=1
         DATA_CACHE_ENABLE=1
         STM32F401xE
+        PRINTD_ENABLE=1
         $<$<CONFIG:Debug>:DEBUG>
 )
 

@@ -7,12 +7,14 @@
 #ifndef UARTTX_TPP
 #define UARTTX_TPP
 
+#include <algorithm>
 #include <cerrno>
 #include <fcntl.h>
 #include <unistd.h>
-#include <algorithm>
 
-#include "stm32f4xx_utils.h"
+#include "gpio.h"
+#include "dma.h"
+#include "usart.h"
 
 template <size_t BUF_SIZE>
 UartTx<BUF_SIZE>::UartTx(USART_TypeDef *usart, DMA_TypeDef *dma)
@@ -42,8 +44,9 @@ void UartTx<BUF_SIZE>::setPin(GPIO_TypeDef *gpio, uint32_t pin, uint32_t af) {
 }
 
 template <size_t BUF_SIZE>
-void UartTx<BUF_SIZE>::setFrame(uint32_t data_width, uint32_t parity, uint32_t stop) {
-  _usart_init.DataWidth = data_width;
+void UartTx<BUF_SIZE>::setFrame(uint32_t parity, uint32_t stop) {
+  _usart_init.DataWidth = (parity == LL_USART_PARITY_NONE) ? LL_USART_DATAWIDTH_8B
+                                                           : LL_USART_DATAWIDTH_9B;
   _usart_init.Parity = parity;
   _usart_init.StopBits = stop;
 }
@@ -64,20 +67,20 @@ void UartTx<BUF_SIZE>::setDMATransfer(uint32_t stream, uint32_t ch,
 }
 
 template <size_t BUF_SIZE>
-int UartTx<BUF_SIZE>::open(const OFile &ofile) {
+int UartTx<BUF_SIZE>::open(OFile &ofile) {
   if (ofile.mode != FWRITE)
     return -EINVAL;
 
   /* Initialize GPIO peripheral */
-  GPIO_enableClock(_gpio);
+  gpio::enableClock(_gpio);
   LL_GPIO_Init(_gpio, &_gpio_init);
 
   /* Initialize DMA peripheral */
-  DMA_enableClock(_dma);
+  dma::enableClock(_dma);
   LL_DMA_Init(_dma, _dma_stream, &_dma_init);
 
   /* Initialize USART peripheral */
-  USART_enableClock(_usart);
+  usart::enableClock(_usart);
   LL_USART_Init(_usart, &_usart_init);
 
   /* Enable USART in DMA mode */
@@ -88,8 +91,19 @@ int UartTx<BUF_SIZE>::open(const OFile &ofile) {
 }
 
 template <size_t BUF_SIZE>
-int UartTx<BUF_SIZE>::close([[maybe_unused]] const OFile &ofile) {
-  return -ENOTSUP;
+int UartTx<BUF_SIZE>::close([[maybe_unused]] OFile &ofile) {
+  LL_GPIO_InitTypeDef gpio_init = _gpio_init;
+  gpio_init.Pin = _gpio_init.Mode = LL_GPIO_MODE_ANALOG;
+
+  /* Wait for ongoing transfer to complete */
+  while (!LL_USART_IsActiveFlag_TC(_usart));
+
+  /* De-init peripherals */
+  LL_USART_DeInit(_usart);
+  LL_DMA_DeInit(_dma, _dma_stream);
+  LL_GPIO_Init(_gpio, &gpio_init);
+
+  return 0;
 }
 
 template <size_t BUF_SIZE>
@@ -105,10 +119,17 @@ off_t UartTx<BUF_SIZE>::llseek(OFile &ofile, off_t offset, int whence) {
 }
 
 template <size_t BUF_SIZE>
-ssize_t UartTx<BUF_SIZE>::write(const OFile &ofile, const void *buf, size_t count,
+void UartTx<BUF_SIZE>::start_dma_transfer(size_t count) const {
+  LL_DMA_SetDataLength(_dma, _dma_stream, count);
+  dma::clearFlagTC(_dma, _dma_stream);
+  LL_USART_ClearFlag_TC(_usart);
+  LL_DMA_EnableStream(_dma, _dma_stream);
+}
+
+template <size_t BUF_SIZE>
+ssize_t UartTx<BUF_SIZE>::write(OFile &ofile, const char *buf, size_t count,
                       off_t &pos) {
-  auto cbuf = static_cast<Buffer::const_pointer>(buf);
-  count = std::min(count, BUF_SIZE);
+  count = std::min(count, _buf.size());
 
   /* Wait for ongoing transfer to complete */
   while (!LL_USART_IsActiveFlag_TC(_usart)) {
@@ -118,12 +139,8 @@ ssize_t UartTx<BUF_SIZE>::write(const OFile &ofile, const void *buf, size_t coun
   }
 
   /* Store the data to send in a contiguous local buffer */
-  std::copy_n(cbuf, count, _buf.data());
-
-  /* Configure DMA transfer */
-  LL_DMA_SetDataLength(_dma, _dma_stream, count);
-  LL_DMA_ClearFlag_TC[_dma_stream](_dma);
-  LL_DMA_EnableStream(_dma, _dma_stream);
+  std::copy_n(buf, count, _buf.data());
+  start_dma_transfer(count);
 
   pos += count;
   return count;
