@@ -10,7 +10,8 @@
 #include "CallbackUtils.hpp"
 #include "stm32f4xx.h"
 
-template <typename HwAlarm, bool FallingTrigger = true> class PushButton {
+template <typename HwAlarm, bool FALLING_TRIGGER = true>
+class PushButton {
 public:
   using MilliSeconds = typename HwAlarm::MilliSeconds;
 
@@ -41,11 +42,11 @@ private:
   GPIO_TypeDef *_gpio;
   uint32_t _pin_mask;
   HwAlarm &_hw_alarm;
+  CallbackType _alarm_cb;
+
+  volatile State _state;
   MilliSeconds _reject;
   MilliSeconds _long_press_residual;
-
-  CallbackType _alarm_cb;
-  volatile State _state;
 };
 
 #include "PushButton.tpp"

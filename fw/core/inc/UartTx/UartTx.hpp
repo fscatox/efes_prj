@@ -9,9 +9,9 @@
 
 #include "IFile.h"
 
-#include "stm32f4xx_ll_dma.h"
-#include "stm32f4xx_ll_gpio.h"
-#include "stm32f4xx_ll_usart.h"
+#include "dma.h"
+#include "gpio.h"
+#include "usart.h"
 
 #include <array>
 
@@ -33,20 +33,29 @@ public:
   ssize_t write(OFile &ofile, const char *buf, size_t count, off_t &pos) override;
 
 protected:
-  void start_dma_transfer(size_t count) const;
+  using BufferType = std::array<uint8_t, BUF_SIZE>;
+
+  bool isSending() const;
+  bool wait(bool non_block = false); /*! not atomic */
+  void startDMATransfer(size_t count) const; /*! from last memory address */
+  void startDMATransfer(BufferType::const_iterator first, size_t count) const;
 
   USART_TypeDef *_usart;
   DMA_TypeDef *_dma;
   uint32_t _dma_stream;
   GPIO_TypeDef *_gpio;
 
-  using Buffer = std::array<uint8_t, BUF_SIZE>;
-  Buffer _buf;
+  BufferType _buf;
 
 private:
-  LL_USART_InitTypeDef _usart_init;
-  LL_DMA_InitTypeDef _dma_init;
-  LL_GPIO_InitTypeDef _gpio_init;
+  uint32_t _gpio_pin;
+  uint32_t _gpio_af;
+  uint32_t _usart_parity;
+  uint32_t _usart_stop;
+  uint32_t _usart_baud_rate;
+  uint32_t _usart_over_sampling;
+  uint32_t _dma_priority;
+  uint32_t _dma_channel;
 };
 
 #include "UartTx.tpp"

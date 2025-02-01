@@ -9,27 +9,27 @@
 #include "gpio.h"
 #include "exti.h"
 
-template <typename HwAlarm, bool FallingTrigger>
-PushButton<HwAlarm, FallingTrigger>::PushButton(GPIO_TypeDef *gpio,
+template <typename HwAlarm, bool FALLING_TRIGGER>
+PushButton<HwAlarm, FALLING_TRIGGER>::PushButton(GPIO_TypeDef *gpio,
                                                 uint32_t pin_mask,
                                                 HwAlarm &hw_alarm,
                                                 MilliSeconds reject,
                                                 MilliSeconds long_press)
-    : _gpio(gpio), _pin_mask(pin_mask), _hw_alarm(hw_alarm), _reject(reject),
-      _long_press_residual(long_press - reject), _alarm_cb(this, &PushButton::alarm),
-      _state(OFF) {}
+    : _gpio(gpio), _pin_mask(pin_mask), _hw_alarm(hw_alarm),
+      _alarm_cb(this, &PushButton::alarm), _state(OFF), _reject(reject),
+      _long_press_residual(long_press - reject) {}
 
-template <typename HwAlarm, bool FallingTrigger>
-void PushButton<HwAlarm, FallingTrigger>::enableTrig(Edge edge) const {
-  if (edge == FallingTrigger)
+template <typename HwAlarm, bool FALLING_TRIGGER>
+void PushButton<HwAlarm, FALLING_TRIGGER>::enableTrig(Edge edge) const {
+  if (edge == FALLING_TRIGGER)
     LL_EXTI_EnableFallingTrig_0_31(_pin_mask);
   else
     LL_EXTI_EnableRisingTrig_0_31(_pin_mask);
 }
 
-template <typename HwAlarm, bool FallingTrigger>
-void PushButton<HwAlarm, FallingTrigger>::disableTrig(Edge edge) const {
-  if (edge == FallingTrigger)
+template <typename HwAlarm, bool FALLING_TRIGGER>
+void PushButton<HwAlarm, FALLING_TRIGGER>::disableTrig(Edge edge) const {
+  if (edge == FALLING_TRIGGER)
     LL_EXTI_DisableFallingTrig_0_31(_pin_mask);
   else
     LL_EXTI_DisableRisingTrig_0_31(_pin_mask);
@@ -38,14 +38,14 @@ void PushButton<HwAlarm, FallingTrigger>::disableTrig(Edge edge) const {
   LL_EXTI_ClearFlag_0_31(_pin_mask);
 }
 
-template <typename HwAlarm, bool FallingTrigger>
-bool PushButton<HwAlarm, FallingTrigger>::isEnabledTrig(Edge edge) const {
-  return edge == FallingTrigger ? LL_EXTI_IsEnabledFallingTrig_0_31(_pin_mask)
+template <typename HwAlarm, bool FALLING_TRIGGER>
+bool PushButton<HwAlarm, FALLING_TRIGGER>::isEnabledTrig(Edge edge) const {
+  return edge == FALLING_TRIGGER ? LL_EXTI_IsEnabledFallingTrig_0_31(_pin_mask)
                                 : LL_EXTI_IsEnabledRisingTrig_0_31(_pin_mask);
 }
 
-template <typename HwAlarm, bool FallingTrigger>
-bool PushButton<HwAlarm, FallingTrigger>::enable() {
+template <typename HwAlarm, bool FALLING_TRIGGER>
+bool PushButton<HwAlarm, FALLING_TRIGGER>::enable() {
   if (_state != OFF)
     return false;
 
@@ -55,8 +55,8 @@ bool PushButton<HwAlarm, FallingTrigger>::enable() {
   return true;
 }
 
-template <typename HwAlarm, bool FallingTrigger>
-void PushButton<HwAlarm, FallingTrigger>::disable() {
+template <typename HwAlarm, bool FALLING_TRIGGER>
+void PushButton<HwAlarm, FALLING_TRIGGER>::disable() {
   LL_EXTI_DisableIT_0_31(_pin_mask);
   _hw_alarm.setAlarm(&_alarm_cb, 0);
   disableTrig(LEADING);
@@ -64,8 +64,8 @@ void PushButton<HwAlarm, FallingTrigger>::disable() {
   _state = OFF;
 }
 
-template <typename HwAlarm, bool FallingTrigger>
-void PushButton<HwAlarm, FallingTrigger>::init(uint32_t preempt,
+template <typename HwAlarm, bool FALLING_TRIGGER>
+void PushButton<HwAlarm, FALLING_TRIGGER>::init(uint32_t preempt,
                                                uint32_t sub) const {
   gpio::enableClock(_gpio);
 
@@ -79,8 +79,8 @@ void PushButton<HwAlarm, FallingTrigger>::init(uint32_t preempt,
   NVIC_EnableIRQ(exti::getIRQn(_pin_mask));
 }
 
-template <typename HwAlarm, bool FallingTrigger>
-void PushButton<HwAlarm, FallingTrigger>::handler() {
+template <typename HwAlarm, bool FALLING_TRIGGER>
+void PushButton<HwAlarm, FALLING_TRIGGER>::handler() {
   if (!LL_EXTI_ReadFlag_0_31(_pin_mask))
     return;
 
@@ -98,10 +98,10 @@ void PushButton<HwAlarm, FallingTrigger>::handler() {
   }
 }
 
-template <typename HwAlarm, bool FallingTrigger>
-void PushButton<HwAlarm, FallingTrigger>::alarm() {
+template <typename HwAlarm, bool FALLING_TRIGGER>
+void PushButton<HwAlarm, FALLING_TRIGGER>::alarm() {
   if (_state == REJECTING) {
-    if (LL_GPIO_IsInputPinSet(_gpio, _pin_mask) != FallingTrigger) {
+    if (LL_GPIO_IsInputPinSet(_gpio, _pin_mask) != FALLING_TRIGGER) {
       /* actual edge (level did change) */
       _hw_alarm.setAlarm(&_alarm_cb, 1, _long_press_residual);
       _state = TRIGGERED;
@@ -119,8 +119,8 @@ void PushButton<HwAlarm, FallingTrigger>::alarm() {
   }
 }
 
-template <typename HwAlarm, bool FallingTrigger>
-bool PushButton<HwAlarm, FallingTrigger>::shortPress(bool disable) {
+template <typename HwAlarm, bool FALLING_TRIGGER>
+bool PushButton<HwAlarm, FALLING_TRIGGER>::shortPress(bool disable) {
   if (_state != DETECTED_SHORT)
     return false;
 
@@ -131,8 +131,8 @@ bool PushButton<HwAlarm, FallingTrigger>::shortPress(bool disable) {
   return true;
 }
 
-template <typename HwAlarm, bool FallingTrigger>
-bool PushButton<HwAlarm, FallingTrigger>::longPress(bool disable) {
+template <typename HwAlarm, bool FALLING_TRIGGER>
+bool PushButton<HwAlarm, FALLING_TRIGGER>::longPress(bool disable) {
   if (_state != DETECTED_LONG)
     return false;
 

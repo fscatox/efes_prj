@@ -45,21 +45,23 @@ target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE
 # Add custom linker script
 target_link_options(${CMAKE_PROJECT_NAME} PRIVATE
         -T "${CMAKE_CURRENT_SOURCE_DIR}/stm32f401xe.ld"
-        -Wl,--orphan-handling=warn
+        #-Wl,--orphan-handling=warn
 )
 
 # Add include directories
+file(GLOB core_inc_subdirs RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} CONFIGURE_DEPENDS "core/inc/*")
+list(FILTER core_inc_subdirs EXCLUDE REGEX "[.]")
+
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
         ${cmsis_core_standard_SOURCE_DIR}/CMSIS/Core/Include
         ${cmsis_core_device_SOURCE_DIR}/Include
         ${stm32_hal_SOURCE_DIR}/Inc
-        sys/inc
         core/inc
+        ${core_inc_subdirs}
 )
 
 # Add project sources
-file(GLOB_RECURSE sys_src CONFIGURE_DEPENDS "sys/src/*.c*")
-file(GLOB_RECURSE core_src CONFIGURE_DEPENDS "core/src/*.c*")
+file(GLOB_RECURSE core_src RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} CONFIGURE_DEPENDS "core/src/*.c*")
 
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         ${cmsis_core_device_SOURCE_DIR}/Source/Templates/system_stm32f4xx.c
@@ -73,7 +75,6 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         ${stm32_hal_SOURCE_DIR}/Src/stm32f4xx_ll_usart.c
         ${stm32_hal_SOURCE_DIR}/Src/stm32f4xx_ll_utils.c
         ${stm32_hal_SOURCE_DIR}/Src/stm32f4xx_ll_dma.c
-        ${sys_src}
         ${core_src}
 )
 
