@@ -45,6 +45,7 @@ constexpr IRQn_Type getIRQn(uintptr_t base_addr, IRQAdvancedTIM irqt = NONE) {
     return static_cast<IRQn_Type>(NonMaskableInt_IRQn - 1);
   }
 }
+IRQn_Type getIRQn(const TIM_TypeDef *tim, IRQAdvancedTIM irqt = NONE);
 
 constexpr uint32_t getNChannels(uintptr_t base_addr) {
   switch (base_addr) {
@@ -91,6 +92,7 @@ constexpr bool is32Bit(uintptr_t base_addr) {
 }
 
 uint32_t getPscClock(uintptr_t base_addr);
+uint32_t getPscClock(const TIM_TypeDef *tim);
 
 constexpr void enableClock(uintptr_t base_addr) {
   switch (base_addr) {
@@ -121,6 +123,7 @@ constexpr void enableClock(uintptr_t base_addr) {
     return;
   }
 }
+void enableClock(const TIM_TypeDef *tim);
 
 constexpr uintptr_t ccrAddr(uintptr_t base_addr, size_t ch) {
   switch (ch) {

@@ -38,8 +38,6 @@ public:
   bool init(const NanoSeconds &t_cnt, uint32_t preempt = 0, uint32_t sub = 0);
   bool setResolution(const NanoSeconds &t_cnt);
 
-  /* reps = 0 = numeric_limits<uint32_t>::max() -> infinite repetitions */
-
   /**
    * @brief Start an alarm from current CNT
    * @param delay Time interval between consecutive alarm firings

@@ -14,6 +14,8 @@
 #include "stm32f4xx_ll_system.h"
 #include "stm32f4xx_ll_utils.h"
 
+#include "BStepper.h"
+
 #include "SSegDisplay.hpp"
 #include "UartTx.hpp"
 
@@ -54,6 +56,15 @@ static void systemClockConfig();
   Push_Button().init();
   Push_Button().enable();
 
+  /* Initialize stepper motor */
+  Stepper().setPins({.en = EN_Pin,
+                     .ph = {.a = {.pos = AP_Pin, .neg = AN_Pin},
+                            .b = {.pos = BP_Pin, .neg = BN_Pin}}});
+  Stepper().setDMATransfer(LL_DMA_STREAM_1, LL_DMA_CHANNEL_6);
+  Stepper().setResolution(200);
+  Stepper().init();
+  Stepper().enable();
+
   /*
    * Initialize device drivers
    */
@@ -70,24 +81,13 @@ static void systemClockConfig();
   if (!display_out)
     exit(-1);
 
-  fprintf(display_out,
-          "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do \n"
-          "eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim \n"
-          "ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut \n"
-          "aliquip ex ea commodo consequat. Duis aute irure dolor in \n"
-          "reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla \n"
-          "pariatur. Excepteur sint occaecat cupidatat non proident, sunt in \n"
-          "culpa qui officia deserunt mollit anim id est laborum.\n");
-  fflush(display_out);
-
   while (true) {
     if (Push_Button().shortPress()) {
-      fprintf(display_out, "Alphabet");
-      fflush(display_out);
-      fprintf(display_out, " |[]-.0123456789ABCDEFGHIJKLMNOPQRSTUVwXYZ\n");
-      fflush(display_out);
+      PRINTD("Rotating +90° ...");
+      Stepper().rotate(50, 250E3);
     } else if (Push_Button().longPress()) {
-      exit(0);
+      PRINTD("Rotating -180° ...");
+      Stepper().rotate(100, 250E3, BStepper::CW);
     }
   }
 }
@@ -159,5 +159,10 @@ HwAlarmType &Hw_Alarm() {
 
 PushButtonType &Push_Button() {
   static PushButtonType obj{B1_GPIO_Port, B1_Pin, Hw_Alarm()};
+  return obj;
+}
+
+BStepper &Stepper() {
+  static BStepper obj{AB_GPIO_Port, TIM1, DMA2};
   return obj;
 }

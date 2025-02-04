@@ -12,7 +12,7 @@ namespace gpio {
 
 int getPortNo(const GPIO_TypeDef *gpio) {
   const auto gpio_base = reinterpret_cast<uintptr_t>(gpio);
-  return (gpio_base - AHB1PERIPH_BASE) >> 10;
+  return static_cast<int>((gpio_base - AHB1PERIPH_BASE) >> 10);
 }
 
 void enableClock(const GPIO_TypeDef *gpio) {
@@ -30,26 +30,27 @@ static void initUnused() {
 
   GPIO_TypeDef *ports[] = {GPIOA, GPIOB, GPIOC, GPIOD, GPIOH};
 
-  uint32_t msks[] = {
-    /* GPIOA */
-    LL_GPIO_PIN_ALL ^ (LD2_Pin | AP_Pin | AN_Pin | BP_Pin | USART_TX_Pin |
-                       USART_RX_Pin | SWDIO_Pin | SWCLK_Pin),
+  const uint32_t masks[] = {
+      /* GPIOA */
+      LL_GPIO_PIN_ALL ^
+          (LD2_Pin | USART_TX_Pin | USART_RX_Pin | SWDIO_Pin | SWCLK_Pin),
 
-    /* GPIOB */
-    LL_GPIO_PIN_ALL ^ (SSEG_URX_Pin | BN_Pin),
+      /* GPIOB */
+      LL_GPIO_PIN_ALL ^
+          (SSEG_URX_Pin | EN_Pin | AP_Pin | AN_Pin | BP_Pin | BN_Pin),
 
-    /* GPIOC */
-    LL_GPIO_PIN_ALL ^ (B1_Pin | ASYNC_RST_N_Pin | SCLK_Pin | MISO_Pin |
-                       MOSI_Pin | ADC_SS_N_Pin | PS2_SS_N_Pin | EN_Pin),
+      /* GPIOC */
+      LL_GPIO_PIN_ALL ^ (B1_Pin | ASYNC_RST_N_Pin | SCLK_Pin | MISO_Pin |
+                         MOSI_Pin | ADC_SS_N_Pin | PS2_SS_N_Pin),
 
-    /* GPIOD */
-    LL_GPIO_PIN_2,
+      /* GPIOD */
+      LL_GPIO_PIN_2,
 
-    /* GPIOH */
-    LL_GPIO_PIN_0 | LL_GPIO_PIN_1};
+      /* GPIOH */
+      LL_GPIO_PIN_0 | LL_GPIO_PIN_1};
 
   for (size_t i = 0; i < sizeof(ports) / sizeof(ports[0]); i++) {
-    init_struct.Pin = msks[i];
+    init_struct.Pin = masks[i];
     LL_GPIO_Init(ports[i], &init_struct);
   }
 
@@ -87,4 +88,4 @@ void init() {
   initUnused();
 }
 
-}
+} // namespace gpio

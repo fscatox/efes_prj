@@ -50,20 +50,14 @@ namespace gpio {
 #define SSEG_URX_GPIO_Port GPIOB
 
 /* Motor board */
-#define EN_Pin LL_GPIO_PIN_1
-#define EN_GPIO_Port GPIOC
+#define EN_Pin LL_GPIO_PIN_13
+#define EN_GPIO_Port GPIOB
 
-#define AP_Pin LL_GPIO_PIN_8
-#define AP_GPIO_Port GPIOA
-
-#define AN_Pin LL_GPIO_PIN_7
-#define AN_GPIO_Port GPIOA
-
-#define BP_Pin LL_GPIO_PIN_10
-#define BP_GPIO_Port GPIOA
-
-#define BN_Pin LL_GPIO_PIN_1
-#define BN_GPIO_Port GPIOB
+#define AP_Pin LL_GPIO_PIN_14
+#define AN_Pin LL_GPIO_PIN_15
+#define BP_Pin LL_GPIO_PIN_1
+#define BN_Pin LL_GPIO_PIN_2
+#define AB_GPIO_Port GPIOB
 
 /* ST-Link */
 #define USART_TX_Pin LL_GPIO_PIN_2

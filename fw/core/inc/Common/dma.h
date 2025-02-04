@@ -12,7 +12,18 @@
 namespace dma {
 
 void enableClock(DMA_TypeDef *dma);
+
 void clearFlagTC(DMA_TypeDef *dma, uint32_t stream);
+
+void clearFlagHT(DMA_TypeDef *dma, uint32_t stream);
+
+void clearFlagTE(DMA_TypeDef *dma, uint32_t stream);
+
+void clearFlagDME(DMA_TypeDef *dma, uint32_t stream);
+
+void clearFlagFE(DMA_TypeDef *dma, uint32_t stream);
+
+void clearFlags(DMA_TypeDef *dma, uint32_t stream);
 
 }
 

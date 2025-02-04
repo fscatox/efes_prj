@@ -10,6 +10,7 @@
 #include "FileManager.hpp"
 #include "HwAlarm.hpp"
 #include "PushButton.hpp"
+#include "BStepper.h"
 
 /*
  * Lazy construction of the file manager
@@ -28,5 +29,7 @@ HwAlarmType &Hw_Alarm();
 
 using PushButtonType = PushButton<HwAlarmType>;
 PushButtonType &Push_Button();
+
+BStepper &Stepper();
 
 #endif //MAIN_H

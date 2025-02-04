@@ -39,6 +39,10 @@ static constexpr uint32_t (*is_active_flag_cc[])(const TIM_TypeDef *) {
 
 namespace tim {
 
+IRQn_Type getIRQn(const TIM_TypeDef *tim, IRQAdvancedTIM irqt) {
+  return getIRQn(reinterpret_cast<uintptr_t>(tim), irqt);
+}
+
 static constexpr uint32_t calcTimClk(uint32_t pclk,
                                      uint32_t apb_psc,
                                      uint32_t apb_psc_div1,
@@ -80,6 +84,13 @@ uint32_t getPscClock(uintptr_t base_addr) {
   }
 }
 
+uint32_t getPscClock(const TIM_TypeDef *tim) {
+  return getPscClock(reinterpret_cast<uintptr_t>(tim));
+};
+
+void enableClock(const TIM_TypeDef *tim) {
+  enableClock(reinterpret_cast<uintptr_t>(tim));
+}
 
 void enableItCC(TIM_TypeDef *tim, size_t ch) {
   enable_it_cc[ch](tim);
