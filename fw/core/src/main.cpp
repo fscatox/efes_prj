@@ -14,8 +14,6 @@
 #include "stm32f4xx_ll_system.h"
 #include "stm32f4xx_ll_utils.h"
 
-#include "BStepper.h"
-
 #include "SSegDisplay.hpp"
 #include "UartTx.hpp"
 
@@ -103,8 +101,7 @@ static void systemClockConfig() {
   /* The latency defaults to zero. For the target HCLK and a supply voltage
    * range (2.7 V to 3.6 V), the latency is increased to 2 */
   LL_FLASH_SetLatency(LL_FLASH_LATENCY_2);
-  while (LL_FLASH_GetLatency() != LL_FLASH_LATENCY_2)
-    ;
+  while (LL_FLASH_GetLatency() != LL_FLASH_LATENCY_2);
 
   /* The voltage regulator is set to scale mode 2, which kicks in once
    * the PLL is enabled */
@@ -124,13 +121,11 @@ static void systemClockConfig() {
 
   /* Enable PLL */
   LL_RCC_PLL_Enable();
-  while (!LL_RCC_PLL_IsReady())
-    ;
+  while (!LL_RCC_PLL_IsReady());
 
   /* Switch to PLL clock */
   LL_RCC_SetSysClkSource(LL_RCC_SYS_CLKSOURCE_PLL);
-  while (LL_RCC_GetSysClkSource() != LL_RCC_SYS_CLKSOURCE_STATUS_PLL)
-    ;
+  while (LL_RCC_GetSysClkSource() != LL_RCC_SYS_CLKSOURCE_STATUS_PLL);
 
   /* Update CMSIS SystemCoreClock variable */
   LL_SetSystemCoreClock(HCLK_FREQUENCY_HZ);

@@ -23,11 +23,6 @@ set(CMAKE_CXX_EXTENSIONS ON)
 # Enable compile command to ease indexing
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Locate external sources
-set(cmsis_core_standard_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib/CMSIS-Core/Standard)
-set(cmsis_core_device_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib/CMSIS-Core/Device)
-set(stm32_hal_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib/HAL)
-
 # Create project target
 add_executable(${CMAKE_PROJECT_NAME})
 
@@ -48,33 +43,22 @@ target_link_options(${CMAKE_PROJECT_NAME} PRIVATE
         #-Wl,--orphan-handling=warn
 )
 
-# Add include directories
+# External libraries
+include(cmsis)
+include(stm32_hal)
+include(littlefs)
+
+# Add core include directories
 file(GLOB core_inc_subdirs RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} CONFIGURE_DEPENDS "core/inc/*")
 list(FILTER core_inc_subdirs EXCLUDE REGEX "[.]")
-
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
-        ${cmsis_core_standard_SOURCE_DIR}/CMSIS/Core/Include
-        ${cmsis_core_device_SOURCE_DIR}/Include
-        ${stm32_hal_SOURCE_DIR}/Inc
         core/inc
         ${core_inc_subdirs}
 )
 
-# Add project sources
+# Add core project sources
 file(GLOB_RECURSE core_src RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} CONFIGURE_DEPENDS "core/src/*.c*")
-
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
-        ${cmsis_core_device_SOURCE_DIR}/Source/Templates/system_stm32f4xx.c
-        ${stm32_hal_SOURCE_DIR}/Src/stm32f4xx_ll_exti.c
-        ${stm32_hal_SOURCE_DIR}/Src/stm32f4xx_ll_gpio.c
-        ${stm32_hal_SOURCE_DIR}/Src/stm32f4xx_ll_pwr.c
-        ${stm32_hal_SOURCE_DIR}/Src/stm32f4xx_ll_rcc.c
-        ${stm32_hal_SOURCE_DIR}/Src/stm32f4xx_ll_rng.c
-        ${stm32_hal_SOURCE_DIR}/Src/stm32f4xx_ll_spi.c
-        ${stm32_hal_SOURCE_DIR}/Src/stm32f4xx_ll_tim.c
-        ${stm32_hal_SOURCE_DIR}/Src/stm32f4xx_ll_usart.c
-        ${stm32_hal_SOURCE_DIR}/Src/stm32f4xx_ll_utils.c
-        ${stm32_hal_SOURCE_DIR}/Src/stm32f4xx_ll_dma.c
         ${core_src}
 )
 
@@ -97,9 +81,12 @@ target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
         $<$<CONFIG:Debug>:DEBUG>
 )
 
-# Add linked libraries/directories
+# Add linked libraries
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE
         ARM::V7EM-HARD-FPV4SP
         ARM::NoSys
         ARM::Nano
+        CMSIS::Core
+        STM32::LL
+        LittleFs
 )
