@@ -14,19 +14,19 @@
 
 /* Injects std::source_location::current() at the callee site */
 #define PRINTD(fmt, ...)                                                       \
-  printd_impl(std::source_location::current(), stdout, fmt, ##__VA_ARGS__)
+  print_impl(std::source_location::current(), stdout, fmt, ##__VA_ARGS__)
 #define PRINTE(fmt, ...)                                                       \
-  printd_impl(std::source_location::current(), stderr, fmt, ##__VA_ARGS__)
+  print_impl(std::source_location::current(), stderr, fmt, ##__VA_ARGS__)
 
-constexpr void printd_impl(const std::source_location &loc, FILE *stream,
+constexpr void print_impl(const std::source_location &loc, FILE *stream,
                            const char *fmt, ...) {
-#if defined(DEBUG) && (PRINTD_ENABLE != 0U)
-  fprintf(stream, "%s: line %" PRIuLEAST32 ":\r\n\t%s: ", loc.file_name(),
+#if defined(DEBUG) && (PRINT_ENABLE != 0U)
+  fprintf(stream, "%s: line %" PRIuLEAST32 ":\r\n%s:\r\n\t", loc.file_name(),
           loc.line(), loc.function_name());
   va_list args;
   va_start(args, fmt);
   vfprintf(stream, fmt, args);
-  fprintf(stream, "\r\n");
+  fprintf(stream, "\r\n\n");
   va_end(args);
 #endif // DEBUG
 }

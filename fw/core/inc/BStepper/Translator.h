@@ -23,8 +23,8 @@ public:
     PhasePins b;
   };
 
-  enum Direction { CCW = 0, CW };
-  enum StepType { FULL = 0, HALF };
+  enum Direction : uint8_t { CCW = 0, CW };
+  enum StepType : uint8_t { FULL = 0, HALF };
 
   Translator();
   void setPins(const Pinout &p);

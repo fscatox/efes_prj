@@ -8,7 +8,6 @@
 #define EXTI_H
 
 #include "stm32f4xx_ll_exti.h"
-#include <bit>
 
 namespace exti {
 

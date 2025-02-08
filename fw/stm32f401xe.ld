@@ -20,7 +20,9 @@ PROVIDE(MIN_HEAP_SIZE = 3K);
 MEMORY
 {
   /* sectors of the flash main memory block */
-  FLASH (rx)  : ORIGIN = 0x08000000, LENGTH = 16K*4 + 64K + 128K*3
+  FLASH (rx)  : ORIGIN = 0x08000000, LENGTH = 16K*4 + 64K + 128K*2
+  /* sectors dedicated to non-volatile storage */
+  NVS   (w!x) : ORIGIN = 0x08060000, LENGTH = 128K
   /* embedded SRAM */
   RAM   (w!x) : ORIGIN = 0x20000000, LENGTH = 96K
 }

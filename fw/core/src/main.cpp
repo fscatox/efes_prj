@@ -14,6 +14,7 @@
 #include "stm32f4xx_ll_system.h"
 #include "stm32f4xx_ll_utils.h"
 
+#include "MotionPattern.hpp"
 #include "SSegDisplay.hpp"
 #include "UartTx.hpp"
 
@@ -61,7 +62,11 @@ static void systemClockConfig();
   Stepper().setDMATransfer(LL_DMA_STREAM_1, LL_DMA_CHANNEL_6);
   Stepper().setResolution(200);
   Stepper().init();
-  Stepper().enable();
+
+  /* Initialize motion pattern */
+  constexpr auto nmax_motion_segments = 128;
+  MotionPattern<nmax_motion_segments> mp(flash::Sector::S7);
+  PRINTD("MotionPatter cache: %u/%u", mp.size(), mp.max_size());
 
   /*
    * Initialize device drivers
@@ -81,11 +86,11 @@ static void systemClockConfig();
 
   while (true) {
     if (Push_Button().shortPress()) {
-      PRINTD("Rotating +90° ...");
-      Stepper().rotate(50, 250E3);
+      PRINTD("mp.emplaceBack() -> 0x%08p", mp.emplaceBack(0xAAAAAAAA,0xAAAA,BStepper::CCW));
+      PRINTD("MotionPatter cache: %u/%u", mp.size(), mp.max_size());
     } else if (Push_Button().longPress()) {
-      PRINTD("Rotating -180° ...");
-      Stepper().rotate(100, 250E3, BStepper::CW);
+      mp.clear();
+      PRINTD("MotionPatter cache: %u/%u", mp.size(), mp.max_size());
     }
   }
 }

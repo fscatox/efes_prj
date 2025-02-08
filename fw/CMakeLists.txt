@@ -28,6 +28,7 @@ add_executable(${CMAKE_PROJECT_NAME})
 
 # Additional options
 target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE
+        -save-temps
         -Wno-missing-field-initializers
 )
 
@@ -46,7 +47,6 @@ target_link_options(${CMAKE_PROJECT_NAME} PRIVATE
 # External libraries
 include(cmsis)
 include(stm32_hal)
-include(littlefs)
 
 # Add core include directories
 file(GLOB core_inc_subdirs RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} CONFIGURE_DEPENDS "core/inc/*")
@@ -77,7 +77,7 @@ target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
         INSTRUCTION_CACHE_ENABLE=1
         DATA_CACHE_ENABLE=1
         STM32F401xE
-        PRINTD_ENABLE=1
+        PRINT_ENABLE=1
         $<$<CONFIG:Debug>:DEBUG>
 )
 
@@ -88,5 +88,4 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE
         ARM::Nano
         CMSIS::Core
         STM32::LL
-        LittleFs
 )

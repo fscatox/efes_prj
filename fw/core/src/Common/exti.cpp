@@ -7,6 +7,7 @@
 #include "exti.h"
 #include "gpio.h"
 #include "stm32f4xx_ll_system.h"
+#include <bit>
 
 namespace exti {
 
