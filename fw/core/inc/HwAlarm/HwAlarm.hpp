@@ -7,20 +7,21 @@
 #ifndef HWALARM_HPP
 #define HWALARM_HPP
 
-#include "tim.h"
-#include "CallbackUtils.hpp"
-
 #include <array>
 #include <chrono>
 
+#include "CallbackUtils.hpp"
+#include "tim.h"
+
 template <uintptr_t TimBase>
 class HwAlarm {
-public:
+ public:
   using DurationRep = uint64_t;
   using NanoSeconds = std::chrono::duration<DurationRep, std::nano>;
   using MicroSeconds = std::chrono::duration<DurationRep, std::micro>;
   using MilliSeconds = std::chrono::duration<DurationRep, std::milli>;
   using ICallbackType = ICallback<void()>;
+  using Cnt = std::conditional_t<tim::is32Bit(TimBase), uint32_t, uint16_t>;
 
   enum AlarmState {
     INVALID_CALLBACK = -4,
@@ -42,10 +43,12 @@ public:
    * @brief Start an alarm from current CNT
    * @param delay Time interval between consecutive alarm firings
    * @param icb Callback object @ref FnCallback, @ref MemFnCallback
-   * @param reps Periodic (enabled with 0 or numeric max) or Finite-repetitions alarm (1, 2, ..., max - 1)
+   * @param reps Periodic (enabled with 0 or numeric max) or Finite-repetitions
+   * alarm (1, 2, ..., max - 1)
    * @return Either @ref AlarmState SET, or an error enum value (< 0)
    */
-  AlarmState setAlarm(const NanoSeconds &delay, const ICallbackType *icb, uint32_t reps = 1);
+  AlarmState setAlarm(const NanoSeconds &delay, const ICallbackType *icb,
+                      uint32_t reps = 1);
 
   /**
    * @brief Change a running alarm
@@ -57,13 +60,18 @@ public:
    * @param icb_new Modify callback object, or don't (default icb)
    * @return Either @ref AlarmState SET, or an error enum value (< 0)
    */
-AlarmState setAlarm(const ICallbackType *icb, uint32_t reps, const NanoSeconds &delay = NanoSeconds::zero(), const ICallbackType *icb_new = nullptr);
+  AlarmState setAlarm(const ICallbackType *icb, uint32_t reps,
+                      const NanoSeconds &delay = NanoSeconds::zero(),
+                      const ICallbackType *icb_new = nullptr);
 
-private:
+  Cnt now() const;
+
+  bool getTick(const NanoSeconds &delay, Cnt &cticks) const;
+
+ private:
   static inline auto _tim = reinterpret_cast<TIM_TypeDef *>(TimBase);
   static constexpr auto _nch = tim::getNChannels(TimBase);
 
-  using Cnt = std::conditional_t<tim::is32Bit(TimBase), uint32_t, uint16_t>;
   using Psc = uint16_t;
 
   struct Alarm {
@@ -85,4 +93,4 @@ private:
 
 #include "HwAlarm.tpp"
 
-#endif // HWALARM_HPP
+#endif  // HWALARM_HPP

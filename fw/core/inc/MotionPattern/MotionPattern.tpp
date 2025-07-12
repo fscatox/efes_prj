@@ -11,7 +11,7 @@ template <size_t NMAX_MOTION_SEGMENTS>
 void MotionPattern<NMAX_MOTION_SEGMENTS>::erase() {
   if (!flash::unlock()) {
     PRINTE("flash::unlock() failed. Forcing reset...");
-    exit(-3);
+    exit(-4);
   }
 
   setOperation(flash::Op::SER);
@@ -89,7 +89,7 @@ template <size_t NMAX_MOTION_SEGMENTS>
 void MotionPattern<NMAX_MOTION_SEGMENTS>::markDirty() {
   if (!flash::unlock()) {
     PRINTE("flash::unlock() failed. Forcing reset...");
-    exit(-3);
+    exit(-4);
   }
 
   setOperation(flash::Op::PG);
@@ -101,7 +101,7 @@ void MotionPattern<NMAX_MOTION_SEGMENTS>::markDirty() {
   if (isActive(flash::PGERR)) {
     PRINTE("Failed marking fchunk %u (0x%08x) DIRTY. Forcing reset...",
            _fchunk_idx, _fchunk);
-    exit(-3);
+    exit(-4);
   }
   PRINTD("fchunk %u (0x%08x) marked DIRTY", _fchunk_idx, _fchunk);
 }

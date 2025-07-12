@@ -7,13 +7,17 @@
 #ifndef HWALARM_TPP
 #define HWALARM_TPP
 
-#include <algorithm>
 #include <debug.h>
 #include <stm32f4xx_ll_tim.h>
 
+#include <algorithm>
+
 template <uintptr_t TimBase>
 HwAlarm<TimBase>::HwAlarm()
-  : _alarms{}, _psc_clk(0), _psc_plus_one_times_den(0), _psc_plus_one_times_half_den(0) {}
+    : _alarms{},
+      _psc_clk(0),
+      _psc_plus_one_times_den(0),
+      _psc_plus_one_times_half_den(0) {}
 
 template <uintptr_t TimBase>
 bool HwAlarm<TimBase>::calcTimeBase(const NanoSeconds &t_cnt, Psc &psc) {
@@ -23,8 +27,7 @@ bool HwAlarm<TimBase>::calcTimeBase(const NanoSeconds &t_cnt, Psc &psc) {
   const auto psc_clk = tim::getPscClock(TimBase);
   const auto ticks = t_cnt.count() * psc_clk;
 
-  if (ticks < ratio_den || ticks > (ratio_den << psc_width))
-    return false;
+  if (ticks < ratio_den || ticks > (ratio_den << psc_width)) return false;
 
   /* Floor gives at least target resolution, or better */
   auto psc_plus_one = ticks / ratio_den;
@@ -40,8 +43,7 @@ bool HwAlarm<TimBase>::calcTimeBase(const NanoSeconds &t_cnt, Psc &psc) {
 template <uintptr_t TimBase>
 bool HwAlarm<TimBase>::setResolution(const NanoSeconds &t_cnt) {
   Psc psc;
-  if (!calcTimeBase(t_cnt, psc))
-    return false;
+  if (!calcTimeBase(t_cnt, psc)) return false;
 
   LL_TIM_SetPrescaler(_tim, psc);
   LL_TIM_GenerateEvent_UPDATE(_tim);
@@ -65,8 +67,7 @@ bool HwAlarm<TimBase>::init(const NanoSeconds &t_cnt, uint32_t preempt,
   LL_TIM_SetAutoReload(_tim, std::numeric_limits<Cnt>::max());
 
   /* Set PSC, generates UEV (reset PSC and CNT) */
-  if (!setResolution(t_cnt))
-    return false;
+  if (!setResolution(t_cnt)) return false;
 
   /*
    * CCMR @ reset
@@ -88,8 +89,7 @@ template <uintptr_t TimBase>
 size_t HwAlarm<TimBase>::getChannel() const {
   size_t idx;
   for (idx = 0; idx < _alarms.size(); ++idx) {
-    if (!_alarms[idx].icb)
-      return idx;
+    if (!_alarms[idx].icb) return idx;
   }
   return idx;
 }
@@ -104,21 +104,22 @@ void HwAlarm<TimBase>::freeChannel(size_t ch) {
 }
 
 template <uintptr_t TimBase>
-auto HwAlarm<TimBase>::setAlarm(const NanoSeconds &delay, const ICallbackType *icb, uint32_t reps) -> AlarmState {
+auto HwAlarm<TimBase>::setAlarm(const NanoSeconds &delay,
+                                const ICallbackType *icb, uint32_t reps)
+    -> AlarmState {
   /* save time of request asap */
   const auto cnt = static_cast<Cnt>(_tim->CNT);
 
   /* exit early if parameters are invalid */
-  if (!icb || !*icb)
-    return INVALID_CALLBACK;
+  if (!icb || !*icb) return INVALID_CALLBACK;
 
   /* exit early if no resources are free */
   const auto idx = getChannel();
-  if (idx == _alarms.size())
-    return CHANNELS_BUSY;
+  if (idx == _alarms.size()) return CHANNELS_BUSY;
 
-  const auto ticks_wide = ((delay.count() * _psc_clk) +
-    _psc_plus_one_times_half_den) / _psc_plus_one_times_den;
+  const auto ticks_wide =
+      ((delay.count() * _psc_clk) + _psc_plus_one_times_half_den) /
+      _psc_plus_one_times_den;
   const auto ticks = static_cast<Cnt>(ticks_wide);
 
   if (!ticks_wide || ticks_wide > std::numeric_limits<Cnt>::max())
@@ -141,7 +142,7 @@ auto HwAlarm<TimBase>::setAlarm(const NanoSeconds &delay, const ICallbackType *i
   /* mark channel in use and activate */
   _alarms[idx].icb = icb;
   tim::enableItCC(_tim, idx);
-  
+
   /* re-evaluate channels' IRQs */
   NVIC_ClearPendingIRQ(tim::getIRQn(TimBase));
   NVIC_EnableIRQ(tim::getIRQn(TimBase));
@@ -152,9 +153,8 @@ template <uintptr_t TimBase>
 auto HwAlarm<TimBase>::setAlarm(const ICallbackType *icb, uint32_t reps,
                                 const NanoSeconds &delay,
                                 const ICallbackType *icb_new) -> AlarmState {
-  if (!icb || (icb_new && !*icb_new))
-    return INVALID_CALLBACK;
-  
+  if (!icb || (icb_new && !*icb_new)) return INVALID_CALLBACK;
+
   /* lock alarm representation */
   NVIC_DisableIRQ(tim::getIRQn(TimBase));
 
@@ -179,10 +179,11 @@ auto HwAlarm<TimBase>::setAlarm(const ICallbackType *icb, uint32_t reps,
   if (delay != NanoSeconds::zero()) {
     /* recover original time instant */
     auto cnt = *tim::ccr<TimBase>(idx) - _alarms[idx].ticks;
-    
+
     /* recalculate timing parameters */
-    const auto ticks_wide = ((delay.count() * _psc_clk) +
-      _psc_plus_one_times_half_den) / _psc_plus_one_times_den;
+    const auto ticks_wide =
+        ((delay.count() * _psc_clk) + _psc_plus_one_times_half_den) /
+        _psc_plus_one_times_den;
     _alarms[idx].ticks = static_cast<Cnt>(ticks_wide);
 
     if (!ticks_wide || ticks_wide > std::numeric_limits<Cnt>::max()) {
@@ -204,8 +205,7 @@ auto HwAlarm<TimBase>::setAlarm(const ICallbackType *icb, uint32_t reps,
   }
 
   /* Modify callback */
-  if (icb_new)
-    _alarms[idx].icb = icb_new;
+  if (icb_new) _alarms[idx].icb = icb_new;
 
   /* re-evaluate channels' IRQs */
   NVIC_ClearPendingIRQ(tim::getIRQn(TimBase));
@@ -220,13 +220,12 @@ auto HwAlarm<TimBase>::setAlarm(const ICallbackType *icb, uint32_t reps,
 template <uintptr_t TimBase>
 void HwAlarm<TimBase>::handler() {
   constexpr auto max_reps = std::numeric_limits<uint32_t>::max();
-  std::array<const ICallbackType *, _nch> scheduled {};
+  std::array<const ICallbackType *, _nch> scheduled{};
 
   /* one channel after the other */
   for (size_t idx = 0; idx < _alarms.size(); ++idx) {
     /* if in use && has triggered */
     if (_alarms[idx].icb && tim::isActiveFlagCC(_tim, idx)) {
-
       /* schedule its execution */
       scheduled[idx] = _alarms[idx].icb;
 
@@ -247,11 +246,30 @@ void HwAlarm<TimBase>::handler() {
 
   /* delayed execution */
   for (const auto icb : scheduled) {
-    if (icb)
-      (*icb)();
+    if (icb) (*icb)();
   }
-
 }
 #pragma GCC diagnostic pop
 
-#endif //HWALARM_TPP
+template <uintptr_t TimBase>
+typename HwAlarm<TimBase>::Cnt HwAlarm<TimBase>::now() const {
+  return _tim->CNT;
+}
+
+template <uintptr_t TimBase>
+bool HwAlarm<TimBase>::getTick(const NanoSeconds &delay, Cnt &cticks) const {
+  /* save time of request asap */
+  const auto cnt = static_cast<Cnt>(_tim->CNT);
+
+  const auto ticks_wide =
+      ((delay.count() * _psc_clk) + _psc_plus_one_times_half_den) /
+      _psc_plus_one_times_den;
+  const auto ticks = static_cast<Cnt>(ticks_wide);
+
+  if (!ticks_wide || ticks_wide > std::numeric_limits<Cnt>::max()) return false;
+
+  cticks = cnt + ticks;
+  return true;
+}
+
+#endif  // HWALARM_TPP

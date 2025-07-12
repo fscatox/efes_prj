@@ -17,6 +17,7 @@
 #include "MotionPattern.hpp"
 #include "SSegDisplay.hpp"
 #include "UartTx.hpp"
+#include "Keyboard.hpp"
 
 using namespace std::chrono_literals;
 

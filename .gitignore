@@ -4,5 +4,7 @@ fpga/questa/
 fw/.idea
 fw/.cache
 fw/.clangd
+fw/.clang-format
 fw/cmake-build*
 fw/sdk
+fw/scratch

@@ -107,8 +107,7 @@ template <typename HwAlarm, size_t BUF_SIZE, bool SEG_ON_HIGH>
 int SSegDisplay<HwAlarm, BUF_SIZE, SEG_ON_HIGH>::close(OFile &ofile) {
   if (_state == TRANSFER_SCROLL) {
     /* Wait to have scrolled at least once */
-    while (!_scrolled_once)
-      ;
+    while (!_scrolled_once);
     /* Kill scroll task */
     _hw_alarm.setAlarm(&_alarm_cb, 0);
   }
