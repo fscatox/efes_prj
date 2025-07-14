@@ -29,11 +29,13 @@ public:
 
   constexpr static size_t max_size() { return NMAX_MOTION_SEGMENTS; }
   size_t size() const;
+  bool empty() const;
 
   void clear();
   const MotionSegment *emplaceBack(BStepper::SpeedType milli_rev_per_minute,
                                    BStepper::StepCountType steps,
                                    BStepper::Direction direction);
+  const MotionSegment *emplaceBack(const MotionSegment &ms);
 
 private:
   enum FlashChunkAttribute : uint8_t {

@@ -36,6 +36,12 @@ class FifoArray {
   const_pointer end() const {
     return begin() + size();
   }
+  const_pointer cbegin() const {
+    return begin();
+  }
+  const_pointer cend() const {
+    return end();
+  }
 
   bool linearize() {
     if (is_linearized())

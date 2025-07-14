@@ -7,3 +7,6 @@
 [submodule "fw/lib/HAL"]
 	path = fw/lib/HAL
 	url = https://github.com/STMicroelectronics/stm32f4xx-hal-driver.git
+[submodule "fw/lib/compile-time-regular-expressions"]
+	path = fw/lib/compile-time-regular-expressions
+	url = https://github.com/hanickadot/compile-time-regular-expressions.git

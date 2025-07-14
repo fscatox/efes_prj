@@ -86,6 +86,11 @@ size_t MotionPattern<NMAX_MOTION_SEGMENTS>::size() const {
 }
 
 template <size_t NMAX_MOTION_SEGMENTS>
+bool MotionPattern<NMAX_MOTION_SEGMENTS>::empty() const {
+  return !_n;
+}
+
+template <size_t NMAX_MOTION_SEGMENTS>
 void MotionPattern<NMAX_MOTION_SEGMENTS>::markDirty() {
   if (!flash::unlock()) {
     PRINTE("flash::unlock() failed. Forcing reset...");
@@ -168,6 +173,12 @@ auto MotionPattern<NMAX_MOTION_SEGMENTS>::emplaceBack(
   _cchunk[_n].steps = steps;
   _cchunk[_n].direction = direction;
   return &_cchunk[_n++];
+}
+
+template <size_t NMAX_MOTION_SEGMENTS>
+auto MotionPattern<NMAX_MOTION_SEGMENTS>::emplaceBack(
+    const MotionSegment &ms) -> const MotionSegment * {
+  return emplaceBack(ms.milli_rev_per_minute, ms.steps, ms.direction);
 }
 
 #endif // MOTIONPATTERN_TPP

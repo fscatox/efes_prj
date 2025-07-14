@@ -31,12 +31,15 @@ namespace gpio {
 /* SPI peripherals: ADC and PS/2 controller */
 #define SCLK_Pin LL_GPIO_PIN_10
 #define SCLK_GPIO_Port GPIOC
+#define SCLK_GPIO_Alternate LL_GPIO_AF_6
 
 #define MISO_Pin LL_GPIO_PIN_11
 #define MISO_GPIO_Port GPIOC
+#define MISO_GPIO_Alternate LL_GPIO_AF_6
 
 #define MOSI_Pin LL_GPIO_PIN_12
 #define MOSI_GPIO_Port GPIOC
+#define MOSI_GPIO_Alternate LL_GPIO_AF_6
 
 #define ADC_SS_N_Pin LL_GPIO_PIN_8
 #define ADC_SS_N_GPIO_Port GPIOC

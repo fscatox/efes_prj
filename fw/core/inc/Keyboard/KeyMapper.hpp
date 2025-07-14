@@ -16,7 +16,7 @@
 template <size_t BUF_SIZE>
 class KeyMapper {
  public:
-  using CharT = unsigned char;
+  using CharT = char;
   using String = FifoArray<CharT, BUF_SIZE>;
 
   void reset();
