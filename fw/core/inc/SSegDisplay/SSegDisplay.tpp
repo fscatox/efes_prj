@@ -163,13 +163,14 @@ ssize_t SSegDisplay<HwAlarm, BUF_SIZE, SEG_ON_HIGH>::write(OFile &ofile,
   /* If present, strip terminator */
   const auto strip_count = std::distance(buf, it);
 
-  /* Concatenate starting at _buf_end */
+  /* Check if there is enough space left for concatenation
+   * (one char is always reserved for a spacer) */
   const auto buf_count = std::distance(this->_buf.begin(), _buf_end);
-  if (static_cast<size_t>(buf_count) + strip_count > this->_buf.size())
+  if (static_cast<size_t>(buf_count) + strip_count > this->_buf.size() - 1)
     return -ENOSPC;
 
-  /* Remapping characters though */
-  _buf_end = std::transform(buf, buf + strip_count, _buf_end, SSegDisplay::encode);
+  /* And remap characters with 7seg encoding */
+  _buf_end = std::transform(buf, it, _buf_end, encode);
 
   /* Terminated? Transfer the whole string to the display */
   if (it != buf_end) {
@@ -179,11 +180,12 @@ ssize_t SSegDisplay<HwAlarm, BUF_SIZE, SEG_ON_HIGH>::write(OFile &ofile,
     if (str_len <= _disp_len) { /* It fits, it's a single transfer */
       this->startDMATransfer(this->_buf.begin(), str_len);
       _state = TRANSFER_NO_SCROLL;
-    } else { /* It requires scrolling */
-      this->startDMATransfer(this->_buf.begin(), _disp_len);
-      _state = TRANSFER_SCROLL;
+    } else { /* It requires scrolling (head & tail separated with a space) */
+      *(_buf_end++) = encode(' ');
       _scroll_ptr = this->_buf.begin() + 1;
       _scrolled_once = false;
+      this->startDMATransfer(this->_buf.begin(), _disp_len);
+      _state = TRANSFER_SCROLL;
       _hw_alarm.setAlarm(_scroll_delay, &_alarm_cb, 0);
     }
   }
@@ -226,12 +228,16 @@ void SSegDisplay<HwAlarm, BUF_SIZE, SEG_ON_HIGH>::alarm() {
   if (this->isSending())
     exit(-3); /* scroll time too short? Something very weird is happening */
 
-  this->startDMATransfer(_scroll_ptr, _disp_len);
+  /* Last contiguous transfer?
+   * Shift [_scroll_ptr, _buf_end] to begin */
   if (_scroll_ptr + _disp_len == _buf_end) {
-    _scrolled_once = true;
+    std::rotate(this->_buf.begin(), _scroll_ptr, _buf_end);
     _scroll_ptr = this->_buf.begin();
-  } else
-    _scroll_ptr = std::next(_scroll_ptr);
+    _scrolled_once = true;
+  }
+
+  this->startDMATransfer(_scroll_ptr, _disp_len);
+  _scroll_ptr = std::next(_scroll_ptr);
 }
 
 #endif // SSEGDISPLAY_TPP

@@ -37,7 +37,7 @@ class HwAlarm {
   void handler();
 
   bool init(const NanoSeconds &t_cnt, uint32_t preempt = 0, uint32_t sub = 0);
-  bool setResolution(const NanoSeconds &t_cnt);
+  bool setResolution(const NanoSeconds &tick);
 
   /**
    * @brief Start an alarm from current CNT
@@ -64,9 +64,7 @@ class HwAlarm {
                       const NanoSeconds &delay = NanoSeconds::zero(),
                       const ICallbackType *icb_new = nullptr);
 
-  Cnt now() const;
-
-  bool getTick(const NanoSeconds &delay, Cnt &cticks) const;
+  bool delay(const NanoSeconds &t) const;
 
  private:
   static inline auto _tim = reinterpret_cast<TIM_TypeDef *>(TimBase);

@@ -177,9 +177,7 @@ auto Keyboard<HwAlarm, BUF_SIZE>::getLine() -> const
 
   _init();
   while ((c = _peek()) != '\n') {
-    typename HwAlarm::Cnt cticks;
-    _hw_alarm.getTick(500ms, cticks);
-    while (cticks > _hw_alarm.now());
+    _hw_alarm.delay(500ms);
   }
   _deinit();
 

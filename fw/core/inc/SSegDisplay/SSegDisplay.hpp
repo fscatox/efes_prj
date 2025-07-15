@@ -104,7 +104,7 @@ private:
   MilliSeconds _scroll_delay;
   size_t _disp_len;
   volatile bool _scrolled_once;
-  volatile typename BufferType::const_iterator _scroll_ptr;
+  volatile typename BufferType::iterator _scroll_ptr;
 };
 
 #include "SSegDisplay.tpp"

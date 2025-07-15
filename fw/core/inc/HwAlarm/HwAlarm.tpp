@@ -41,9 +41,9 @@ bool HwAlarm<TimBase>::calcTimeBase(const NanoSeconds &t_cnt, Psc &psc) {
 }
 
 template <uintptr_t TimBase>
-bool HwAlarm<TimBase>::setResolution(const NanoSeconds &t_cnt) {
+bool HwAlarm<TimBase>::setResolution(const NanoSeconds &tick) {
   Psc psc;
-  if (!calcTimeBase(t_cnt, psc)) return false;
+  if (!calcTimeBase(tick, psc)) return false;
 
   LL_TIM_SetPrescaler(_tim, psc);
   LL_TIM_GenerateEvent_UPDATE(_tim);
@@ -252,23 +252,19 @@ void HwAlarm<TimBase>::handler() {
 #pragma GCC diagnostic pop
 
 template <uintptr_t TimBase>
-typename HwAlarm<TimBase>::Cnt HwAlarm<TimBase>::now() const {
-  return _tim->CNT;
-}
+bool HwAlarm<TimBase>::delay(const NanoSeconds &t) const {
+  auto t0 = static_cast<Cnt>(_tim->CNT);
+  const auto ticks = ((t.count() * _psc_clk) + _psc_plus_one_times_half_den) /
+                     _psc_plus_one_times_den;
 
-template <uintptr_t TimBase>
-bool HwAlarm<TimBase>::getTick(const NanoSeconds &delay, Cnt &cticks) const {
-  /* save time of request asap */
-  const auto cnt = static_cast<Cnt>(_tim->CNT);
+  if (!ticks) return false;
 
-  const auto ticks_wide =
-      ((delay.count() * _psc_clk) + _psc_plus_one_times_half_den) /
-      _psc_plus_one_times_den;
-  const auto ticks = static_cast<Cnt>(ticks_wide);
-
-  if (!ticks_wide || ticks_wide > std::numeric_limits<Cnt>::max()) return false;
-
-  cticks = cnt + ticks;
+  DurationRep elapsed = 0;
+  while (elapsed < ticks) {
+    const auto t1 = static_cast<Cnt>(_tim->CNT);
+    elapsed += static_cast<Cnt>(t1 - t0);
+    t0 = t1;
+  }
   return true;
 }
 

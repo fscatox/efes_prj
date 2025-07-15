@@ -61,7 +61,8 @@ static constexpr std::pair<T, T> makeFixed(T x, U factor) {
   PRINTD("Logging facility running ...");
 
   /* Hardware timer: ticks @ 64 kHz, (2 channels, 16 bit) */
-  Hw_Alarm().init(15625ns);
+  constexpr auto hw_alarm_tcnt = 15625ns;
+  Hw_Alarm().init(hw_alarm_tcnt);
 
   /* Initialize push button */
   Push_Button().init();
@@ -93,25 +94,42 @@ static constexpr std::pair<T, T> makeFixed(T x, U factor) {
 
   /* 7-Segment display peripheral over USART1 */
   constexpr auto display_len = 6;
+  constexpr auto notify_duration = 3s;
   SSeg_Display().setPin(SSEG_URX_GPIO_Port, SSEG_URX_Pin, SSEG_URX_Alternate);
   SSeg_Display().setFrame(LL_USART_PARITY_EVEN, LL_USART_STOPBITS_1);
   SSeg_Display().setBaudRate(115200, LL_USART_OVERSAMPLING_16);
   SSeg_Display().setDMATransfer(LL_DMA_STREAM_7, LL_DMA_CHANNEL_4);
-  SSeg_Display().setDisplay(display_len, 250ms);
+  SSeg_Display().setDisplay(display_len, 400ms);
 
+  /* Bring FPGA subsystem out of reset */
+  Hw_Alarm().delay(250ms);
+  LL_GPIO_SetOutputPin(ASYNC_RST_N_GPIO_Port, ASYNC_RST_N_Pin);
+
+  /* Connect display (line buffered mode) */
   auto display_out = fopen("sseg_display", "w");
   if (!display_out) exit(-1);
+  setlinebuf(display_out);
+
+  /* Notify idle state */
+  fprintf(display_out, "Idle\n");
+  PRINTD("Starting in IDLE state");
 
   while (true) {
     if (Push_Button().longPress(true)) {
+      fprintf(display_out, "\rClear\n");
+      Hw_Alarm().delay(notify_duration);
+
       mp.clear();
-      fprintf(display_out, "Clear\n");
       PRINTD("MotionPatter cache cleared: %u/%u", mp.size(), mp.max_size());
+
       Push_Button().enable();
+      fprintf(display_out, "\rIdle\n");
+      PRINTD("Back to IDLE state");
     } else if (Push_Button().shortPress()) {
       /* Triggered movement pattern execution */
       if (!mp.empty()) {
-        fprintf(display_out, "Play\n");
+        fprintf(display_out, "\rPlay\n");
+        Hw_Alarm().delay(notify_duration);
 
         Stepper().enable();
         PRINTD("Starting movement pattern execution");
@@ -127,15 +145,23 @@ static constexpr std::pair<T, T> makeFixed(T x, U factor) {
         Stepper().disable();
         PRINTD("Stopped movement pattern execution");
 
+        fprintf(display_out, "\rIdle\n");
+        PRINTD("Back to IDLE state");
+
       } else {
-        fprintf(display_out, "Err-1\n");
+        fprintf(display_out, "\rErr-1\n");
+        Hw_Alarm().delay(notify_duration);
         PRINTD("Movement pattern execution aborted");
+
+        fprintf(display_out, "\rIdle\n");
+        PRINTD("Back to IDLE state");
       }
     }
 
     if (kb.available()) {
       /* Data point entry triggered: notify to SSegDisplay */
-      fprintf(display_out, "Input\n");
+      fprintf(display_out, "\rInput\n");
+      Hw_Alarm().delay(notify_duration);
 
       /* Acquire full line blocking */
       auto str = kb.getLine();
@@ -164,8 +190,9 @@ static constexpr std::pair<T, T> makeFixed(T x, U factor) {
           const auto rpm = makeFixed(dp.milli_rev_per_minute, 1000);
           const auto sgn_angle = makeFixed(angle_x10, 10);
 
-          fprintf(display_out, "[%u] %lu.%lu %d.%d\n", mp_idx, rpm.first,
+          fprintf(display_out, "\r[%u] %lu.%lu %d.%d\n", mp_idx, rpm.first,
                   rpm.second, sgn_angle.first, sgn_angle.second);
+          Hw_Alarm().delay(notify_duration);
           PRINTD("Data point: [%u] %lu.%lu %d.%d", mp_idx, rpm.first,
                  rpm.second, sgn_angle.first, sgn_angle.second);
 
@@ -173,17 +200,22 @@ static constexpr std::pair<T, T> makeFixed(T x, U factor) {
           if (!mp.emplaceBack(dp)) PRINTE("Failed to commit data point to NVS");
 
         } else {
-          fprintf(display_out, "Err-2\n");
+          fprintf(display_out, "\rErr-2\n");
+          Hw_Alarm().delay(notify_duration);
           PRINTD("Line validation failed");
         }
 
       } else {
-        fprintf(display_out, "Err-3\n");
+        fprintf(display_out, "\rErr-3\n");
+        Hw_Alarm().delay(notify_duration);
         PRINTD("MotionPattern cache is full: %u/%u", mp_idx, mp.max_size());
       }
 
       /* Discard processed line */
       kb.clear();
+
+      fprintf(display_out, "\rIdle\n");
+      PRINTD("Back to IDLE state");
     }
   }
 }

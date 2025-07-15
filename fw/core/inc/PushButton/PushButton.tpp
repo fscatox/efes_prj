@@ -124,9 +124,11 @@ bool PushButton<HwAlarm, FALLING_TRIGGER>::shortPress(bool disable) {
   if (_state != DETECTED_SHORT)
     return false;
 
-  _state = IDLE;
-  if (!disable)
+  if (!disable) {
+    _state = IDLE;
     enableTrig(LEADING);
+  } else
+    _state = OFF;
 
   return true;
 }
@@ -136,9 +138,11 @@ bool PushButton<HwAlarm, FALLING_TRIGGER>::longPress(bool disable) {
   if (_state != DETECTED_LONG)
     return false;
 
-  _state = IDLE;
-  if (!disable)
+  if (!disable) {
+    _state = IDLE;
     enableTrig(LEADING);
+  } else
+    _state = OFF;
 
   return true;
 }
