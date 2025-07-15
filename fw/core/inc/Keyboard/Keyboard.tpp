@@ -83,9 +83,8 @@ void Keyboard<HwAlarm, BUF_SIZE>::_init() const {
 template <typename HwAlarm, size_t BUF_SIZE>
 void Keyboard<HwAlarm, BUF_SIZE>::_deinit() const {
   /* Wait for SPI activity to terminate */
-  while (!LL_SPI_IsActiveFlag_RXNE(_spi));
-  while (!LL_SPI_IsActiveFlag_TXE(_spi));
-  while (!LL_SPI_IsActiveFlag_BSY(_spi));
+  while (LL_SPI_IsActiveFlag_RXNE(_spi));
+  while (LL_SPI_IsActiveFlag_BSY(_spi));
 
   /* Disable SPI */
   LL_SPI_DeInit(_spi);
@@ -112,10 +111,8 @@ uint16_t Keyboard<HwAlarm, BUF_SIZE>::_txrx(uint16_t mosi_data) const {
   /* Deselect slave */
   for (size_t i = 0; i < nselect; ++i) _nss.gpio->BSRR = _nss.pin;
 
-  PRINTD(
-      "SPI Keyboard Slave: 0x%04X\n"
-      "SPI Master        : 0x%04X",
-      rply, mosi_data);
+  //PRINTD("SPI Keyboard Slave: 0x%04X", rply);
+  //PRINTD("SPI Master        : 0x%04X", mosi_data);
 
   return rply;
 }
@@ -177,7 +174,7 @@ auto Keyboard<HwAlarm, BUF_SIZE>::getLine() -> const
 
   _init();
   while ((c = _peek()) != '\n') {
-    _hw_alarm.delay(500ms);
+    _hw_alarm.delay(150ms);
   }
   _deinit();
 

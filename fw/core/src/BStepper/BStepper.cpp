@@ -152,7 +152,7 @@ bool BStepper::calcTimeBase(SpeedType milli_rev_per_minute, StepType t,
 }
 
 bool BStepper::rotate(StepCountType steps, SpeedType milli_rev_per_minute,
-                      Direction d, StepType t) {
+                      Direction d, bool block, StepType t) {
   if (!steps)
     return false;
 
@@ -219,7 +219,9 @@ bool BStepper::rotate(StepCountType steps, SpeedType milli_rev_per_minute,
   LL_TIM_OC_SetCompareCH1(_tim, arr);
   LL_TIM_EnableDMAReq_CC1(_tim);
 
+  /* Start rotation */
   LL_TIM_EnableCounter(_tim);
+  while (block & LL_TIM_IsEnabledCounter(_tim));
   return true;
 }
 

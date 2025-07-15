@@ -78,7 +78,7 @@ static constexpr std::pair<T, T> makeFixed(T x, U factor) {
   Stepper().init();
 
   /* Initialize motion pattern */
-  constexpr auto nmax_motion_segments = 128;
+  constexpr auto nmax_motion_segments = 8;
   MotionPattern<nmax_motion_segments> mp(flash::Sector::S7);
   PRINTD("MotionPatter cache: %u/%u", mp.size(), mp.max_size());
 
@@ -94,12 +94,13 @@ static constexpr std::pair<T, T> makeFixed(T x, U factor) {
 
   /* 7-Segment display peripheral over USART1 */
   constexpr auto display_len = 6;
-  constexpr auto notify_duration = 3s;
+  constexpr auto scroll_delay = 500ms;
+  constexpr auto notify_duration = 2s;
   SSeg_Display().setPin(SSEG_URX_GPIO_Port, SSEG_URX_Pin, SSEG_URX_Alternate);
   SSeg_Display().setFrame(LL_USART_PARITY_EVEN, LL_USART_STOPBITS_1);
   SSeg_Display().setBaudRate(115200, LL_USART_OVERSAMPLING_16);
   SSeg_Display().setDMATransfer(LL_DMA_STREAM_7, LL_DMA_CHANNEL_4);
-  SSeg_Display().setDisplay(display_len, 400ms);
+  SSeg_Display().setDisplay(display_len, scroll_delay);
 
   /* Bring FPGA subsystem out of reset */
   Hw_Alarm().delay(250ms);
@@ -137,7 +138,7 @@ static constexpr std::pair<T, T> makeFixed(T x, U factor) {
         auto ms_it = mp.begin();
         do {
           Stepper().rotate(ms_it->steps, ms_it->milli_rev_per_minute,
-                           ms_it->direction);
+                           ms_it->direction, true);
 
           if (++ms_it == mp.end()) ms_it = mp.begin();
         } while (!Push_Button().shortPress());
@@ -163,9 +164,9 @@ static constexpr std::pair<T, T> makeFixed(T x, U factor) {
       fprintf(display_out, "\rInput\n");
       Hw_Alarm().delay(notify_duration);
 
-      /* Acquire full line blocking */
+      /* Acquire full line (blocking) */
       auto str = kb.getLine();
-      PRINTD("kb.getLine() -> '%.*s'", str.size(), str.begin());
+      PRINTD("kb.getLine() -> '%.*s'", str.size()-1, str.begin());
 
       /* Check for available chunk in NVS */
       if (const auto mp_idx = mp.size(); mp_idx < mp.max_size()) {
@@ -179,7 +180,7 @@ static constexpr std::pair<T, T> makeFixed(T x, U factor) {
 
           /* Construct data point */
           const MotionPattern<nmax_motion_segments>::MotionSegment dp{
-              .milli_rev_per_minute = 200'000,
+              .milli_rev_per_minute = 1'000,
               .steps = static_cast<BStepper::StepCountType>(
                   (angle_x10 * (stepper_resolution / 10) + 180) / 360),
               .direction = str.front() != '-' ? BStepper::CCW : BStepper::CW};
@@ -190,9 +191,10 @@ static constexpr std::pair<T, T> makeFixed(T x, U factor) {
           const auto rpm = makeFixed(dp.milli_rev_per_minute, 1000);
           const auto sgn_angle = makeFixed(angle_x10, 10);
 
-          fprintf(display_out, "\r[%u] %lu.%lu %d.%d\n", mp_idx, rpm.first,
+          rewind(display_out);
+          fprintf(display_out, "[%u] %lu.%lu %d.%d\n", mp_idx, rpm.first,
                   rpm.second, sgn_angle.first, sgn_angle.second);
-          Hw_Alarm().delay(notify_duration);
+          Hw_Alarm().delay(5s);
           PRINTD("Data point: [%u] %lu.%lu %d.%d", mp_idx, rpm.first,
                  rpm.second, sgn_angle.first, sgn_angle.second);
 
