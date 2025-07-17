@@ -64,7 +64,7 @@ class HwAlarm {
                       const NanoSeconds &delay = NanoSeconds::zero(),
                       const ICallbackType *icb_new = nullptr);
 
-  bool delay(const NanoSeconds &t) const;
+  void delay(const NanoSeconds &t) const;
 
  private:
   static inline auto _tim = reinterpret_cast<TIM_TypeDef *>(TimBase);

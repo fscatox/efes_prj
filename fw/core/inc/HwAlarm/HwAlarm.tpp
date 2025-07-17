@@ -252,12 +252,12 @@ void HwAlarm<TimBase>::handler() {
 #pragma GCC diagnostic pop
 
 template <uintptr_t TimBase>
-bool HwAlarm<TimBase>::delay(const NanoSeconds &t) const {
+void HwAlarm<TimBase>::delay(const NanoSeconds &t) const {
   auto t0 = static_cast<Cnt>(_tim->CNT);
   const auto ticks = ((t.count() * _psc_clk) + _psc_plus_one_times_half_den) /
                      _psc_plus_one_times_den;
 
-  if (!ticks) return false;
+  if (!ticks) return;
 
   DurationRep elapsed = 0;
   while (elapsed < ticks) {
@@ -265,7 +265,6 @@ bool HwAlarm<TimBase>::delay(const NanoSeconds &t) const {
     elapsed += static_cast<Cnt>(t1 - t0);
     t0 = t1;
   }
-  return true;
 }
 
 #endif  // HWALARM_TPP

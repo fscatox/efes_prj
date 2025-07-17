@@ -16,7 +16,7 @@
 
 #define NRESERVED_FD (STDERR_FILENO + 1)
 #define VALID_OPEN_FLAGS ((O_RDONLY | O_WRONLY | O_RDWR) |    \
-                          (O_TRUNC | O_APPEND | O_NONBLOCK))
+                          (O_TRUNC | O_APPEND | O_NONBLOCK | O_BINARY))
 
 /* Binds a filename to a resource with IFile interface */
 struct Node {
