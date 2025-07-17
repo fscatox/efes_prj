@@ -3,10 +3,12 @@
 # Date          : 16.12.2024
 
 ## Timing data
+
 # On-board 50 MHz oscillator
 set sys_tclk 20
-# External SPI clock (MCU master, 8 MHz)
-set spi_tclk 125
+
+# External SPI clock (MCU master, 16 MHz)
+set spi_tclk 62.5
 set spi_dtclk 3
 
 ## Clock inputs
@@ -30,4 +32,8 @@ set_false_path -from [get_ports sseg_urx] -to *
 
 # Exclude timing paths to 7-seg displays
 set_false_path -from * -to [get_ports sseg_out*]
+
+## Clock domain crossing
+set_false_path -from [get_clocks clk] -to [get_clocks sclk]
+set_false_path -from [get_clocks sclk] -to [get_clocks clk]
 

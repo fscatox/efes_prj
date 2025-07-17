@@ -24,6 +24,10 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ps2_miso
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to adc_ss_n
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to adc_miso_forwarded
 
+# Enable weak pull-up to deselect the SPI slaves
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to ps2_ss_n
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to adc_ss_n
+
 #
 # Board interface
 #
