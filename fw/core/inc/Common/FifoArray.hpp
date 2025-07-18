@@ -24,6 +24,8 @@ class FifoArray {
 
   FifoArray() : _wr(), _rd() {}
 
+  /* !! Linearize prior to traverisng */
+
   pointer begin() {
     return _data.data() + (_rd & DataMask());
   }

@@ -49,12 +49,12 @@ int LTC2308<SpiMaster, HwAlarm>::open(OFile& ofile) {
   if (ofile.mode != FREAD) return -EINVAL;
 
   /* Check configuration options were set */
-  if (!_convst.gpio || !_max_fclk_hz || _sdo == NULL_FRAME) return -EBUSY;
+  if (!_convst.gpio || !_max_fclk_hz || _sdo == NULL_FRAME) return -EIO;
 
   /* Try to register with the master */
   auto id =
       _spi.addSlave(_convst, FRAME_NBIT, OPT_CPOL, OPT_CPHA, _max_fclk_hz);
-  if (!id) return -EBUSY;
+  if (!id) return -ENOMEM;
   _id = *id;
 
   /* The slave is now deselected.
