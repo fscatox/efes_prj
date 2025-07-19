@@ -17,7 +17,7 @@
  * (the function members are invoked as implementation of system calls)
  */
 
-using FileManagerType = FileManager<3>;
+using FileManagerType = FileManager<4>;
 FileManagerType &File_Manager();
 
 /*

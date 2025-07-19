@@ -7,10 +7,11 @@
 #include "main.h"
 
 #include "Keyboard.hpp"
+#include "LTC2308.hpp"
 #include "MotionPattern.hpp"
 #include "SSegDisplay.hpp"
+#include "SpiMaster.hpp"
 #include "UartTx.hpp"
-#include "ctre.hpp"
 #include "debug.h"
 #include "gpio.h"
 #include "stm32f4xx_ll_bus.h"
@@ -21,6 +22,10 @@
 
 using namespace std::chrono_literals;
 
+/* Lazy construction of local resource managers */
+using SpiMasterType = SpiMaster<HwAlarmType, 2>;
+static SpiMasterType &Spi_Master();
+
 /* Lazy construction of character devices */
 using StLinkUartTxType = UartTx<>;
 static StLinkUartTxType &St_Link_Uart_Tx();
@@ -28,20 +33,14 @@ static StLinkUartTxType &St_Link_Uart_Tx();
 using SSegDisplayType = SSegDisplay<HwAlarmType, 80, false>;
 static SSegDisplayType &SSeg_Display();
 
+using LTC2308Type = LTC2308<SpiMasterType, HwAlarmType>;
+static LTC2308Type &Ltc_2308();
+
+using KeyboardType = Keyboard<SpiMasterType, HwAlarmType>;
+static KeyboardType &Kbd();
+
 /* Platform configuration */
 static void systemClockConfig();
-
-/* Utility */
-template <typename T, typename U,
-          std::enable_if_t<std::is_signed_v<T>, bool> = true>
-static constexpr std::pair<T, T> makeFixed(T x, U factor) {
-  return std::make_pair(x / factor, std::abs(x % factor));
-}
-template <typename T, typename U,
-          std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
-static constexpr std::pair<T, T> makeFixed(T x, U factor) {
-  return std::make_pair(x / factor, x % factor);
-}
 
 [[noreturn]] int main() {
   /* Configure system clock tree */
@@ -61,12 +60,12 @@ static constexpr std::pair<T, T> makeFixed(T x, U factor) {
   PRINTD("Logging facility running ...");
 
   /* Hardware timer: ticks @ 64 kHz, (2 channels, 16 bit) */
-  constexpr auto hw_alarm_tcnt = 15625ns;
-  Hw_Alarm().init(hw_alarm_tcnt);
+  Hw_Alarm().init(15625ns);
 
-  /* Initialize push button */
-  Push_Button().init();
-  Push_Button().enable();
+  /* Initialize motion pattern */
+  constexpr auto nmax_motion_segments = 8;
+  MotionPattern<nmax_motion_segments> mp(flash::Sector::S7);
+  PRINTD("MotionPatter cache: %u/%u", mp.size(), mp.max_size());
 
   /* Initialize stepper motor */
   constexpr auto stepper_resolution = 200;
@@ -77,22 +76,7 @@ static constexpr std::pair<T, T> makeFixed(T x, U factor) {
   Stepper().setResolution(stepper_resolution);
   Stepper().init();
 
-  /* Initialize motion pattern */
-  constexpr auto nmax_motion_segments = 8;
-  MotionPattern<nmax_motion_segments> mp(flash::Sector::S7);
-  PRINTD("MotionPatter cache: %u/%u", mp.size(), mp.max_size());
-
-  /* Initialize keyboard over SPI3 */
-  constexpr auto nmax_chars = 32;
-  Keyboard<HwAlarmType, nmax_chars> kb(SPI3, Hw_Alarm());
-  kb.setPins({MISO_GPIO_Port, MISO_Pin, MISO_GPIO_Alternate},
-             {MOSI_GPIO_Port, MOSI_Pin, MOSI_GPIO_Alternate},
-             {SCLK_GPIO_Port, SCLK_Pin, SCLK_GPIO_Alternate},
-             {PS2_SS_N_GPIO_Port, PS2_SS_N_Pin, 0});
-  kb.setFormat(LL_SPI_POLARITY_LOW, LL_SPI_PHASE_1EDGE);
-  kb.setBaudRate(LL_SPI_BAUDRATEPRESCALER_DIV4);
-
-  /* 7-Segment display peripheral over USART1 */
+  /* Initialize 7-Segment display over USART1 */
   constexpr auto display_len = 6;
   constexpr auto scroll_delay = 500ms;
   constexpr auto notify_duration = 2s;
@@ -102,122 +86,75 @@ static constexpr std::pair<T, T> makeFixed(T x, U factor) {
   SSeg_Display().setDMATransfer(LL_DMA_STREAM_7, LL_DMA_CHANNEL_4);
   SSeg_Display().setDisplay(display_len, scroll_delay);
 
+  /* Initialize SPI master over SPI3 */
+  constexpr auto max_sclk_hz = 8e6;
+  Spi_Master().init({.pin_cfg = {.gpio = MISO_GPIO_Port, .pin = MISO_Pin},
+                     .af = MISO_GPIO_Alternate},
+                    {.pin_cfg = {.gpio = MOSI_GPIO_Port, .pin = MOSI_Pin},
+                     .af = MOSI_GPIO_Alternate},
+                    {.pin_cfg = {.gpio = SCLK_GPIO_Port, .pin = SCLK_Pin},
+                     .af = SCLK_GPIO_Alternate});
+
+  /* Register ADC as a Spi_Master() slave */
+  Ltc_2308().setConvst(ADC_SS_N_GPIO_Port, ADC_SS_N_Pin);
+  Ltc_2308().setMaxClockFreq(max_sclk_hz);
+  Ltc_2308().setOptions(LTC2308Type::SINGLE_ENDED, LTC2308Type::CH0,
+                        LTC2308Type::UNIPOLAR);
+
+  /* Register keyboard as a Spi_Master() slave */
+  Kbd().setSsn(PS2_SS_N_GPIO_Port, PS2_SS_N_Pin);
+  Kbd().setMaxClockFreq(max_sclk_hz);
+  Kbd().setOptions(0, 0);
+
+  /* Initialize push button */
+  Push_Button().init();
+  Push_Button().enable();
+
   /* Bring FPGA subsystem out of reset */
   Hw_Alarm().delay(250ms);
   LL_GPIO_SetOutputPin(ASYNC_RST_N_GPIO_Port, ASYNC_RST_N_Pin);
 
+  /* Connect ADC (buffered mode, block matching one 12 bit sample) */
+  const auto adc = fopen("ltc_2308", "rb");
+  if (!adc) exit(-1);
+  setvbuf(adc, nullptr, _IOFBF, sizeof(uint16_t));
+
   /* Connect display (line buffered mode) */
-  auto display_out = fopen("sseg_display", "w");
+  const auto display_out = fopen("sseg_display", "w");
   if (!display_out) exit(-1);
   setlinebuf(display_out);
+
+  /* Connect keyboard (line buffered) */
+  const auto kbd = fopen("kbd", "r");
+  if (!kbd) exit(-1);
+  setlinebuf(kbd);
+
+  /*
+   * The underlying file descriptor will be added to the set of those
+   * monitored for when they become "ready" for reading (namely when the
+   * read(2) call would not block).
+   */
+  const auto kbd_fd = fileno(kbd);
+  if (kbd_fd < 0) exit(-1);
 
   /* Notify idle state */
   fprintf(display_out, "Idle\n");
   PRINTD("Starting in IDLE state");
 
   while (true) {
-    if (Push_Button().longPress(true)) {
-      fprintf(display_out, "\rClear\n");
-      Hw_Alarm().delay(notify_duration);
 
-      mp.clear();
-      PRINTD("MotionPatter cache cleared: %u/%u", mp.size(), mp.max_size());
+    timeval tv{};
+    fd_set rfds{};
+    FD_SET(kbd_fd, &rfds);
 
-      Push_Button().enable();
-      fprintf(display_out, "\rIdle\n");
-      PRINTD("Back to IDLE state");
-    } else if (Push_Button().shortPress()) {
-      /* Triggered movement pattern execution */
-      if (!mp.empty()) {
-        fprintf(display_out, "\rPlay\n");
-        Hw_Alarm().delay(notify_duration);
+    if (select(kbd_fd + 1, &rfds, nullptr, nullptr, &tv) > 0) {
+      printf("Data available!\n");
 
-        Stepper().enable();
-        PRINTD("Starting movement pattern execution");
-
-        auto ms_it = mp.begin();
-        do {
-          Stepper().rotate(ms_it->steps, ms_it->milli_rev_per_minute,
-                           ms_it->direction, true);
-
-          if (++ms_it == mp.end()) ms_it = mp.begin();
-        } while (!Push_Button().shortPress());
-
-        Stepper().disable();
-        PRINTD("Stopped movement pattern execution");
-
-        fprintf(display_out, "\rIdle\n");
-        PRINTD("Back to IDLE state");
-
-      } else {
-        fprintf(display_out, "\rErr-1\n");
-        Hw_Alarm().delay(notify_duration);
-        PRINTD("Movement pattern execution aborted");
-
-        fprintf(display_out, "\rIdle\n");
-        PRINTD("Back to IDLE state");
-      }
-    }
-
-    if (kb.available()) {
-      /* Data point entry triggered: notify to SSegDisplay */
-      fprintf(display_out, "\rInput\n");
-      Hw_Alarm().delay(notify_duration);
-
-      /* Acquire full line (blocking) */
-      auto str = kb.getLine();
-      PRINTD("kb.getLine() -> '%.*s'", str.size()-1, str.begin());
-
-      /* Check for available chunk in NVS */
-      if (const auto mp_idx = mp.size(); mp_idx < mp.max_size()) {
-        /* Validate line against regex pattern */
-        if (const auto mr =
-                ctre::match<R"((?:\+|-)?([0-9]{1,3})(?:\.([0-9]))?\n)">(
-                    str.cbegin(), str.cend())) {
-          /* Extract angular displacement */
-          auto angle_x10 = mr.get<1>().to_number() * 10 +
-                           (mr.get<2>() ? mr.get<2>().to_number() : 0);
-
-          /* Construct data point */
-          const MotionPattern<nmax_motion_segments>::MotionSegment dp{
-              .milli_rev_per_minute = 1'000,
-              .steps = static_cast<BStepper::StepCountType>(
-                  (angle_x10 * (stepper_resolution / 10) + 180) / 360),
-              .direction = str.front() != '-' ? BStepper::CCW : BStepper::CW};
-
-          /* Log to SSegDisplay */
-          angle_x10 = (dp.direction == BStepper::CCW ? 1 : -1) *
-                      ((dp.steps * 3600) / stepper_resolution);
-          const auto rpm = makeFixed(dp.milli_rev_per_minute, 1000);
-          const auto sgn_angle = makeFixed(angle_x10, 10);
-
-          rewind(display_out);
-          fprintf(display_out, "[%u] %lu.%lu %d.%d\n", mp_idx, rpm.first,
-                  rpm.second, sgn_angle.first, sgn_angle.second);
-          Hw_Alarm().delay(5s);
-          PRINTD("Data point: [%u] %lu.%lu %d.%d", mp_idx, rpm.first,
-                 rpm.second, sgn_angle.first, sgn_angle.second);
-
-          /* Commit to NVS */
-          if (!mp.emplaceBack(dp)) PRINTE("Failed to commit data point to NVS");
-
-        } else {
-          fprintf(display_out, "\rErr-2\n");
-          Hw_Alarm().delay(notify_duration);
-          PRINTD("Line validation failed");
-        }
-
-      } else {
-        fprintf(display_out, "\rErr-3\n");
-        Hw_Alarm().delay(notify_duration);
-        PRINTD("MotionPattern cache is full: %u/%u", mp_idx, mp.max_size());
-      }
-
-      /* Discard processed line */
-      kb.clear();
-
-      fprintf(display_out, "\rIdle\n");
-      PRINTD("Back to IDLE state");
+      std::array<char, 256> buf;  // +000.0\n
+      if (!fgets(buf.data(), buf.size(), kbd))
+        printf("Reading failed!\n");
+      else
+        printf("Read: %*s\n", strlen(buf.data())-1, buf.data());
     }
   }
 }
@@ -263,6 +200,11 @@ static void systemClockConfig() {
   LL_SetSystemCoreClock(HCLK_FREQUENCY_HZ);
 }
 
+static SpiMasterType &Spi_Master() {
+  static SpiMasterType obj(SPI3, Hw_Alarm());
+  return obj;
+}
+
 static StLinkUartTxType &St_Link_Uart_Tx() {
   static StLinkUartTxType obj(USART2, DMA1);
   return obj;
@@ -273,9 +215,23 @@ static SSegDisplayType &SSeg_Display() {
   return obj;
 }
 
+static LTC2308Type &Ltc_2308() {
+  static LTC2308Type obj(Spi_Master(), Hw_Alarm());
+  return obj;
+}
+
+static KeyboardType &Kbd() {
+  static KeyboardType obj(Spi_Master(), Hw_Alarm());
+  return obj;
+}
+
 FileManagerType &File_Manager() {
-  static FileManagerType fm{Node{"st_link_uart_tx", St_Link_Uart_Tx()},
-                            Node{"sseg_display", SSeg_Display()}};
+  static FileManagerType fm{
+      Node{"st_link_uart_tx", St_Link_Uart_Tx()},
+      Node{"sseg_display", SSeg_Display()},
+      Node{"ltc_2308", Ltc_2308()},
+      Node{"kbd", Kbd()},
+  };
   return fm;
 }
 
@@ -285,7 +241,7 @@ HwAlarmType &Hw_Alarm() {
 }
 
 PushButtonType &Push_Button() {
-  static PushButtonType obj{B1_GPIO_Port, B1_Pin, Hw_Alarm()};
+  static PushButtonType obj{B1_GPIO_Port, B1_Pin, Hw_Alarm(), 35ms};
   return obj;
 }
 

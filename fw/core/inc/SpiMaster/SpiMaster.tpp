@@ -14,13 +14,23 @@
 
 template <typename HwAlarm, size_t NMAX_SLAVES>
 SpiMaster<HwAlarm, NMAX_SLAVES>::SpiMaster(SPI_TypeDef *spi, HwAlarm &hw_alarm)
-    : _spi(spi), _hw_alarm(hw_alarm), _slaves{}, _active_cfg(_slaves.size()) {}
+    : _spi(spi),
+      _hw_alarm(hw_alarm),
+      _sclk{},
+      _slaves{},
+      _active_cfg(_slaves.size()) {}
 
 template <typename HwAlarm, size_t NMAX_SLAVES>
 void SpiMaster<HwAlarm, NMAX_SLAVES>::init(const AltPinCfg &miso,
                                            const AltPinCfg &mosi,
                                            const AltPinCfg &sclk) {
-  /* Initialize GPIO peripheral */
+  /* Initialize GPIO peripheral.
+   * While the SPI peripheral is disabled, the AF GPIO pins are not driven;
+   * also, when all slaves are deselected, the MISO pin is in 'z.
+   * The weak pull resistors are used to establish a valid logic state:
+   * for now there is no info about desired CPOL.
+   */
+
   for (const auto &cfg : {miso, mosi, sclk}) {
     gpio::enableClock(cfg.pin_cfg.gpio);
     LL_GPIO_InitTypeDef gpio_init{
@@ -28,14 +38,12 @@ void SpiMaster<HwAlarm, NMAX_SLAVES>::init(const AltPinCfg &miso,
         .Mode = LL_GPIO_MODE_ALTERNATE,
         .Speed = LL_GPIO_SPEED_FREQ_MEDIUM,
         .OutputType = LL_GPIO_OUTPUT_PUSHPULL,
-        .Pull = LL_GPIO_PULL_NO,
+        .Pull = LL_GPIO_PULL_DOWN,
         .Alternate = cfg.af,
     };
     LL_GPIO_Init(cfg.pin_cfg.gpio, &gpio_init);
   }
-
-  /* When all slaves are deselected, pull MISO down */
-  LL_GPIO_SetPinPull(miso.pin_cfg.gpio, miso.pin_cfg.pin, LL_GPIO_PULL_DOWN);
+  _sclk = sclk.pin_cfg;
 
   /* Initialize SPI peripheral */
   spi::enableClock(_spi);
@@ -43,19 +51,19 @@ void SpiMaster<HwAlarm, NMAX_SLAVES>::init(const AltPinCfg &miso,
   LL_SPI_SetMode(_spi, LL_SPI_MODE_MASTER);
   LL_SPI_SetNSSMode(_spi, LL_SPI_NSS_SOFT);
   LL_SPI_SetTransferBitOrder(_spi, LL_SPI_MSB_FIRST);
-  LL_SPI_DisableCRC(_spi);
   LL_SPI_SetStandard(_spi, LL_SPI_PROTOCOL_MOTOROLA);
+  LL_SPI_DisableCRC(_spi);
 }
 
 template <typename HwAlarm, size_t NMAX_SLAVES>
-auto SpiMaster<HwAlarm, NMAX_SLAVES>::addSlave(const PinCfg &ssn, size_t nbit,
+auto SpiMaster<HwAlarm, NMAX_SLAVES>::addSlave(const PinCfg &ssn, size_t nbits,
                                                bool cpol, bool cpha,
                                                ClockFreq max_fclk_hz)
     -> std::optional<SlaveId> {
   /* Check compatibility with frame formats */
-  if (nbit > std::numeric_limits<DataT>::digits) return {};
+  if (nbits > std::numeric_limits<FrameT>::digits) return {};
 
-  /* Compute baud rate settings, if feasible solution exists */
+  /* Compute baud rate settings, if a feasible solution exists */
   auto fclk_hz = spi::getAPBClockFreq(_spi) >> 1;
   uint8_t br_psc = 0;
 
@@ -73,13 +81,11 @@ auto SpiMaster<HwAlarm, NMAX_SLAVES>::addSlave(const PinCfg &ssn, size_t nbit,
   if (it == _slaves.end()) return {};
 
   /* Store the slave configuration */
-  *it = {
-      .ssn = ssn,
-      .nbit = nbit,
-      .cpol = cpol,
-      .cpha = cpha,
-      .br_psc = br_psc,
-  };
+  it->ssn = ssn;
+  it->nbits = nbits;
+  it->cpol = cpol;
+  it->cpha = cpha;
+  it->br_psc = br_psc;
 
   /* Initialize GPIO peripheral */
   gpio::enableClock(ssn.gpio);
@@ -97,9 +103,7 @@ auto SpiMaster<HwAlarm, NMAX_SLAVES>::addSlave(const PinCfg &ssn, size_t nbit,
   /* The id is the index into _slaves */
   const auto id = std::distance(_slaves.begin(), it);
 
-  PRINTD("Slave configuration terminated [fclk_hz = %u] [id = %u]", fclk_hz,
-         id);
-
+  PRINTD("Slave configured [fclk_hz = %u, id = %u]", fclk_hz, id);
   return {id};
 }
 
@@ -129,8 +133,14 @@ template <typename HwAlarm, size_t NMAX_SLAVES>
 void SpiMaster<HwAlarm, NMAX_SLAVES>::_applyCfg(SlaveId sid) {
   const auto &slave = _slaves[sid];
 
+  /* Match weak pull resistors to CPOL */
+  LL_GPIO_SetPinPull(_sclk.gpio, _sclk.pin,
+                     slave.cpol ? LL_GPIO_PULL_UP : LL_GPIO_PULL_DOWN);
+  _hw_alarm.delay(T_WEAK_PUPD);
+
+  /* Match SPI peripheral configuration for this slave */
   LL_SPI_SetDataWidth(
-      _spi, slave.nbit <= 8 ? LL_SPI_DATAWIDTH_8BIT : LL_SPI_DATAWIDTH_16BIT);
+      _spi, slave.nbits <= 8 ? LL_SPI_DATAWIDTH_8BIT : LL_SPI_DATAWIDTH_16BIT);
   LL_SPI_SetClockPolarity(
       _spi, slave.cpol ? LL_SPI_POLARITY_HIGH : LL_SPI_POLARITY_LOW);
   LL_SPI_SetClockPhase(_spi,
@@ -141,8 +151,8 @@ void SpiMaster<HwAlarm, NMAX_SLAVES>::_applyCfg(SlaveId sid) {
 }
 
 template <typename HwAlarm, size_t NMAX_SLAVES>
-std::optional<typename SpiMaster<HwAlarm, NMAX_SLAVES>::DataT>
-SpiMaster<HwAlarm, NMAX_SLAVES>::txrx(SlaveId sid, DataT txd,
+std::optional<typename SpiMaster<HwAlarm, NMAX_SLAVES>::FrameT>
+SpiMaster<HwAlarm, NMAX_SLAVES>::txrx(SlaveId sid, FrameT txd,
                                       HwAlarmType::NanoSeconds t_pre,
                                       HwAlarmType::NanoSeconds t_post) {
   if (!_isValid(sid)) return {};
@@ -152,11 +162,9 @@ SpiMaster<HwAlarm, NMAX_SLAVES>::txrx(SlaveId sid, DataT txd,
   /* Configure SPI only if the slave has changed */
   if (_active_cfg != sid) _applyCfg(sid);
 
-  /* Select 8bit/16bit frame format */
-  const auto nbit_frame = slave.nbit <= 8 ? 8 : 16;
-
   /* !! Align data (slave.nbit wide) to the MSB of the frame (8/16 bit wide) */
-  txd <<= nbit_frame - slave.nbit;
+  const auto frame_nbits = slave.nbits <= 8 ? 8 : 16;
+  txd <<= frame_nbits - slave.nbits;
 
   /* 1) Select */
   LL_GPIO_ResetOutputPin(slave.ssn.gpio, slave.ssn.pin);
@@ -164,14 +172,14 @@ SpiMaster<HwAlarm, NMAX_SLAVES>::txrx(SlaveId sid, DataT txd,
 
   /* 2) TX <---> RX */
   LL_SPI_Enable(_spi);
-  if (nbit_frame == 8)
+  if (frame_nbits == 8)
     LL_SPI_TransmitData8(_spi, static_cast<uint8_t>(txd));
   else
     LL_SPI_TransmitData16(_spi, txd);
 
   while (!LL_SPI_IsActiveFlag_RXNE(_spi));
-  auto rply{nbit_frame == 8 ? static_cast<DataT>(LL_SPI_ReceiveData8(_spi))
-                            : LL_SPI_ReceiveData16(_spi)};
+  auto rply{frame_nbits == 8 ? static_cast<FrameT>(LL_SPI_ReceiveData8(_spi))
+                             : LL_SPI_ReceiveData16(_spi)};
 
   // TXE already 1
   while (LL_SPI_IsActiveFlag_BSY(_spi));
@@ -182,8 +190,12 @@ SpiMaster<HwAlarm, NMAX_SLAVES>::txrx(SlaveId sid, DataT txd,
   LL_GPIO_SetOutputPin(slave.ssn.gpio, slave.ssn.pin);
 
   /* !! Align data (slave.nbit wide) to the LSB of the frame (8/16 bit wide) */
-  rply >>= nbit_frame - slave.nbit;
-  PRINTD("Master [0x%0*X] <---> [0x%0*X] Slave", nbit_frame/4, txd, nbit_frame/4, rply);
+  rply >>= frame_nbits - slave.nbits;
+
+#ifdef SPIMASTER_ENABLE_TXRX_LOG
+  PRINTD("Master [0x%0*X] <---> [0x%0*X] Slave #%u", frame_nbits / 4, txd,
+         frame_nbits / 4, rply, sid);
+#endif
 
   return {rply};
 }

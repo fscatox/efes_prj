@@ -7,16 +7,19 @@
 #ifndef FILEMANAGER_HPP
 #define FILEMANAGER_HPP
 
-#include <array>
 #include <fcntl.h>
-#include <unistd.h>
 #include <sys/stat.h>
+#include <unistd.h>
+
+#include <array>
+#include <cstdarg>
 
 #include "IFile.h"
 
 #define NRESERVED_FD (STDERR_FILENO + 1)
-#define VALID_OPEN_FLAGS ((O_RDONLY | O_WRONLY | O_RDWR) |    \
-                          (O_TRUNC | O_APPEND | O_NONBLOCK | O_BINARY))
+#define VALID_OPEN_FLAGS            \
+  ((O_RDONLY | O_WRONLY | O_RDWR) | \
+   (O_TRUNC | O_APPEND | O_NONBLOCK | O_BINARY))
 
 /* Binds a filename to a resource with IFile interface */
 struct Node {
@@ -26,7 +29,7 @@ struct Node {
 
 template <size_t N_NODES, int NMAX_FD = N_NODES + NRESERVED_FD>
 class FileManager {
-public:
+ public:
   /* Construct NodeTable, inferring N_NODES */
   template <typename... Args>
   constexpr explicit FileManager(const Args &...args);
@@ -47,7 +50,10 @@ public:
   int read(int fd, void *buf, size_t count);
   int write(int fd, const void *buf, size_t count);
 
-private:
+  int vfcntl(int fd, int cmd, va_list vlist);
+  int select(int n, fd_set *inp, fd_set *outp, fd_set *exp, timeval *tvp);
+
+ private:
   using NodeTable = std::array<Node, N_NODES>;
 
   struct OFileEntry {
@@ -68,4 +74,4 @@ FileManager(const Args &...args) -> FileManager<sizeof...(args)>;
 
 #include "FileManager.tpp"
 
-#endif // FILEMANAGER_HPP
+#endif  // FILEMANAGER_HPP

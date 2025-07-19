@@ -7,8 +7,6 @@
 #ifndef LTC2308_HPP
 #define LTC2308_HPP
 
-#include <chrono>
-
 #include "IFile.h"
 
 template <typename SpiMaster, typename HwAlarm>
@@ -49,10 +47,10 @@ class LTC2308 : public IFile {
     return static_cast<typename SpiMaster::ClockFreq>(rx_cycles / t_wlconvst_s);
   }();
 
-  constexpr static auto T_REFWAKE = std::chrono::milliseconds(200);
-  constexpr static auto T_EN = std::chrono::nanoseconds(30);
-  constexpr static auto T_DIS = std::chrono::nanoseconds(30);
-  constexpr static auto T_CONV = std::chrono::nanoseconds(1600);
+  constexpr static auto T_REFWAKE = typename HwAlarm::MilliSeconds{200};
+  constexpr static auto T_EN = typename HwAlarm::NanoSeconds{30};
+  constexpr static auto T_DIS = typename HwAlarm::NanoSeconds{30};
+  constexpr static auto T_CONV = typename HwAlarm::NanoSeconds{1600};
 
   /* FrameT is wider than the actual frame width */
   constexpr static auto NULL_FRAME = std::numeric_limits<FrameT>::max();
