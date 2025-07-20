@@ -41,6 +41,51 @@ void Keyboard<SpiMaster, HwAlarm>::setOptions(bool cpol, bool cpha) {
 }
 
 template <typename SpiMaster, typename HwAlarm>
+bool Keyboard<SpiMaster, HwAlarm>::_pollTxRx(FrameT sdo, FrameT& sdi,
+                                             FrameT sdi_mask, bool active_level,
+                                             size_t nmax_poll_cycles) const {
+  auto rply = _spi.txrx(_id, sdo, T_SYNC, T_SYNC);
+  if (!rply) return false;
+
+  while (nmax_poll_cycles--) {
+    _hw_alarm.delay(T_POLL);
+    rply = _spi.txrx(_id, 0, T_SYNC, T_SYNC);
+    if (!rply) return false;
+    if (static_cast<bool>(*rply & sdi_mask) == active_level) {
+      sdi = *rply;
+      _hw_alarm.delay(T_GAP);
+      return true;
+    }
+  }
+  return false;
+}
+
+template <typename SpiMaster, typename HwAlarm>
+bool Keyboard<SpiMaster, HwAlarm>::_trySet(bool caps_lock,
+                                           bool num_lock) const {
+  constexpr FrameT ACK_CODE = 0xFA;
+  constexpr FrameT CMD_CODE = 0xED;
+  const auto CMD_ARG = (static_cast<FrameT>(num_lock) << 1) |
+                       (static_cast<FrameT>(caps_lock) << 2);
+
+  FrameT sdi;
+
+  if (!_pollTxRx(MOSI_SEND | (CMD_CODE << 8), sdi, MISO_TXC)) return false;
+  PRINTD("[System] -- 0x%02X --> [Keyboard]", CMD_CODE);
+
+  if (!_pollTxRx(MOSI_WEN | MOSI_CEN, sdi, MISO_RXV)) return false;
+  PRINTD("[System] <-- 0x%02X -- [Keyboard]", (sdi >> 8));
+
+  if (!_pollTxRx(MOSI_SEND | (CMD_ARG << 8), sdi, MISO_TXC)) return false;
+  PRINTD("[System] -- 0x%02X --> [Keyboard]", CMD_ARG);
+
+  if (!_pollTxRx(MOSI_WEN | MOSI_CEN, sdi, MISO_RXV)) return false;
+  PRINTD("[System] <-- 0x%02X -- [Keyboard]", (sdi >> 8));
+
+  return (sdi >> 8) == ACK_CODE;
+}
+
+template <typename SpiMaster, typename HwAlarm>
 int Keyboard<SpiMaster, HwAlarm>::open(OFile& ofile) {
   if (ofile.mode != FREAD) return -EINVAL;
 
@@ -54,8 +99,14 @@ int Keyboard<SpiMaster, HwAlarm>::open(OFile& ofile) {
   _id = *id;
 
   /* Issue a reset for the PS/2 controller and its FIFO */
-  _spi.txrx(_id, MOSI_RST, T_SYNC, T_SYNC);
-  _hw_alarm.delay(T_RST);
+  if (FrameT sdi; !_pollTxRx(MOSI_RST, sdi, MISO_EN)) return -EIO;
+  PRINTD("PS/2 Controller and FIFO reset");
+
+  /* Reset the state */
+  if (!_trySet(false, false)) return -EIO;
+  PRINTE("Cleared LED state");
+
+  _state = {};
 
   return 0;
 }
@@ -80,7 +131,7 @@ int Keyboard<SpiMaster, HwAlarm>::_tryRead(uint8_t& scan_code) const {
         enabled, (sdo & MISO_FE), (sdo & MISO_PE), (sdo & MISO_CTO));
 
     _spi.txrx(_id, MOSI_RST, T_SYNC, T_SYNC);
-    _hw_alarm.delay(T_RST);
+    _hw_alarm.delay(T_GAP);
   }
 
   if (sdo & MISO_OE) PRINTD("Overrun detected");
@@ -89,16 +140,29 @@ int Keyboard<SpiMaster, HwAlarm>::_tryRead(uint8_t& scan_code) const {
 }
 
 template <typename SpiMaster, typename HwAlarm>
+bool Keyboard<SpiMaster, HwAlarm>::_getCapsLock() const {
+  return (_state.caps_lock >> 1) ^ (_state.caps_lock & 1);
+}
+
+template <typename SpiMaster, typename HwAlarm>
+bool Keyboard<SpiMaster, HwAlarm>::_getNumLock() const {
+  return (_state.num_lock >> 1) ^ (_state.num_lock & 1);
+}
+
+template <typename SpiMaster, typename HwAlarm>
 char Keyboard<SpiMaster, HwAlarm>::_map(UniKey k) const {
   const auto shift = _state.lshift || _state.rshift;
+  const auto caps_lock = _getCapsLock();
+  const auto num_lock = _getNumLock();
+
   const auto idx = (_state.alt_gr << 1) | shift;
-  const auto idx_caps = idx ^ _state.caps_lock;
+  const auto idx_caps = idx ^ caps_lock;
 
   const auto ascii_lut = AsciiLut()[static_cast<uint8_t>(k)];
   auto c = ascii_lut[idx];
 
   if ((UniKey::KP_7 <= k && k <= UniKey::KP_ENTER) || k == UniKey::KP_EQUAL)
-    return _state.num_lock ? c : 0;
+    return !isdigit(c) || num_lock ? c : 0;
 
   if (isalpha(c)) c = ascii_lut[idx_caps];
 
@@ -114,17 +178,34 @@ char Keyboard<SpiMaster, HwAlarm>::_step(uint8_t scan_code) {
     _state = {};
   else if (action != ScanCodeParser::NONE) {
     const auto is_make = (action == ScanCodeParser::MAKE);
+    /*         is_break     = (action == ScanCodeParser::BREAK)
+     *                      = !is_make                          */
 
     switch (uni_key) {
-      /* Toggle on break */
       case UniKey::KB_CAPSLOCK:
-        _state.caps_lock ^= !is_make;
-        break;
-      case UniKey::KB_NUMLOCK:
-        _state.num_lock ^= !is_make;
+        if (!(_state.caps_lock & 1) && is_make) {
+          _state.caps_lock =
+              KeyState{static_cast<uint8_t>(1 + _state.caps_lock)};
+          if (!_trySet(_getCapsLock(), _getNumLock()))
+            PRINTE("Failed to set LED state");
+        } else if ((_state.caps_lock & 1) && !is_make) {
+          _state.caps_lock = KeyState{
+              static_cast<uint8_t>((_state.caps_lock + 1) & (NKEYSTATES - 1))};
+        }
         break;
 
-      /* Active on make */
+      case UniKey::KB_NUMLOCK:
+        if (!(_state.num_lock & 1) && is_make) {
+          _state.num_lock = KeyState{static_cast<uint8_t>(1 + _state.num_lock)};
+          if (!_trySet(_getCapsLock(), _getNumLock()))
+            PRINTE("Failed to set LED state");
+        } else if ((_state.num_lock & 1) && !is_make) {
+          _state.num_lock = KeyState{
+              static_cast<uint8_t>((_state.num_lock + 1) & (NKEYSTATES - 1))};
+        }
+        break;
+
+      /* Just active/inactive on make/break */
       case UniKey::KB_LSHIFT:
         _state.lshift = is_make;
         break;
@@ -135,6 +216,7 @@ char Keyboard<SpiMaster, HwAlarm>::_step(uint8_t scan_code) {
         _state.alt_gr = is_make;
         break;
 
+      /* Only active on make */
       default:
         if (is_make) mapped_key = _map(uni_key);
     }

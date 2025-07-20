@@ -28,23 +28,25 @@ class Keyboard : public IFile {
 
  private:
   using FrameT = uint16_t;
+  enum KeyState : uint8_t { OFF = 0, OFF2ON, ON, ON2OFF, NKEYSTATES };
 
   struct State {
     bool lshift, rshift;
     bool alt_gr;
-    bool caps_lock;
-    bool num_lock;
+    KeyState caps_lock;
+    KeyState num_lock;
   };
 
   constexpr static auto T_SYNC = typename HwAlarm::NanoSeconds{200};
-  constexpr static auto T_RST = typename HwAlarm::NanoSeconds{200};
-  constexpr static auto T_POLL = typename HwAlarm::MicroSeconds{2};
+  constexpr static auto T_GAP = typename HwAlarm::MilliSeconds{1};
+  constexpr static auto T_POLL = typename HwAlarm::MilliSeconds{10};
 
   constexpr static FrameT MOSI_WEN = 0x01 << 0;  /*!< Write Enable */
   constexpr static FrameT MOSI_CEN = 0x01 << 1;  /*!< Controller Enable */
   constexpr static FrameT MOSI_BCLR = 0x01 << 2; /*!< Buffer Clear */
   constexpr static FrameT MOSI_TXEN = 0x01 << 7; /*!< Transmitter Mode Enable */
   constexpr static FrameT MOSI_RST = (MOSI_WEN | MOSI_CEN | MOSI_BCLR);
+  constexpr static FrameT MOSI_SEND = (MOSI_WEN | MOSI_CEN | MOSI_TXEN);
 
   constexpr static FrameT MISO_EN = 0x01 << 0;  /*!< Controller Enabled */
   constexpr static FrameT MISO_OE = 0x01 << 1;  /*!< Overrun Error */
@@ -137,8 +139,14 @@ class Keyboard : public IFile {
     return lut;
   }
 
+  bool _getCapsLock() const;
+  bool _getNumLock() const;
   char _map(UniKey k) const;
 
+  bool _pollTxRx(FrameT sdo, FrameT& sdi, FrameT sdi_mask,
+                 bool active_level = true, size_t nmax_poll_cycles = 10) const;
+
+  bool _trySet(bool caps_lock, bool num_lock) const;
   int _tryRead(uint8_t& scan_code) const;
   char _step(uint8_t scan_code);
 
@@ -158,6 +166,5 @@ class Keyboard : public IFile {
 };
 
 #include "Keyboard.tpp"
-
 
 #endif  // KEYBOARD_HPP
