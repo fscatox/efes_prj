@@ -187,6 +187,7 @@ ssize_t SSegDisplay<HwAlarm, BUF_SIZE, SEG_ON_HIGH>::write(OFile &ofile,
       this->startDMATransfer(this->_buf.begin(), _disp_len);
       _state = TRANSFER_SCROLL;
       _hw_alarm.setAlarm(_scroll_delay, &_alarm_cb, 0);
+      while (!((ofile.flags & FNONBLOCK) || _scrolled_once));
     }
   }
 

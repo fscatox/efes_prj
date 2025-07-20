@@ -13,7 +13,7 @@
 #include "tim.h"
 
 class BStepper {
-public:
+ public:
   using StepCountType = Translator::StepCountType;
   using SpeedType = uint32_t;
 
@@ -44,10 +44,10 @@ public:
   void enable() const;
   void disable() const;
 
-  bool rotate(StepCountType steps, SpeedType milli_rev_per_minute,
-              Direction d, bool block = false, StepType t = FULL);
+  bool rotate(StepCountType steps, SpeedType milli_rev_per_minute, Direction d,
+              StepType t = FULL);
 
-private:
+ private:
   /* DMA design forces to use advanced timers, which are 16 bit only */
   using TimRegType = uint16_t;
   using TimRCRType = uint8_t;
@@ -72,4 +72,4 @@ private:
   volatile TimRCRType _hw_reps;
 };
 
-#endif // BSTEPPER_H
+#endif  // BSTEPPER_H

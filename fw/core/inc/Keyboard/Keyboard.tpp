@@ -1,190 +1,277 @@
 /**
  * @file     Keyboard.tpp
  * @author   Fabio Scatozza <s315216@studenti.polito.it>
- * @date     12.07.2025
+ * @date     17.07.2025
  */
 
 #ifndef KEYBOARD_TPP
 #define KEYBOARD_TPP
 
-#include "debug.h"
-#include "gpio.h"
+#include "poll.h"
 
-using namespace std::chrono_literals;
+template <typename SpiMaster, typename HwAlarm>
+Keyboard<SpiMaster, HwAlarm>::Keyboard(SpiMaster& spi, HwAlarm& hw_alarm,
+                                       Layout layout)
+    : _spi(spi),
+      _hw_alarm(hw_alarm),
+      _ssn{},
+      _cpol{},
+      _cpha{},
+      _max_fclk_hz{},
+      _parser(layout),
+      _state{},
+      _peek{} {}
 
-template <typename HwAlarm, size_t BUF_SIZE>
-Keyboard<HwAlarm, BUF_SIZE>::Keyboard(SPI_TypeDef *spi, HwAlarm &hw_alarm,
-                                      ScanCodeParser::Layout layout)
-    : _spi(spi), _hw_alarm(hw_alarm), _scparser(layout) {}
-
-template <typename HwAlarm, size_t BUF_SIZE>
-void Keyboard<HwAlarm, BUF_SIZE>::setPins(const PinCfg &miso,
-                                          const PinCfg &mosi,
-                                          const PinCfg &sclk,
-                                          const PinCfg &nss) {
-  _miso = miso;
-  _mosi = mosi;
-  _sclk = sclk;
-  _nss = nss;
+template <typename SpiMaster, typename HwAlarm>
+void Keyboard<SpiMaster, HwAlarm>::setSsn(GPIO_TypeDef* gpio, uint32_t pin) {
+  _ssn.gpio = gpio;
+  _ssn.pin = pin;
 }
 
-template <typename HwAlarm, size_t BUF_SIZE>
-void Keyboard<HwAlarm, BUF_SIZE>::setFormat(uint32_t cpol, uint32_t cpha) {
+template <typename SpiMaster, typename HwAlarm>
+void Keyboard<SpiMaster, HwAlarm>::setMaxClockFreq(
+    typename SpiMaster::ClockFreq fclk_hz) {
+  _max_fclk_hz = fclk_hz;
+}
+
+template <typename SpiMaster, typename HwAlarm>
+void Keyboard<SpiMaster, HwAlarm>::setOptions(bool cpol, bool cpha) {
   _cpol = cpol;
   _cpha = cpha;
 }
 
-template <typename HwAlarm, size_t BUF_SIZE>
-void Keyboard<HwAlarm, BUF_SIZE>::setBaudRate(uint32_t baud_rate) {
-  _baud_rate = baud_rate;
-}
+template <typename SpiMaster, typename HwAlarm>
+bool Keyboard<SpiMaster, HwAlarm>::_pollTxRx(FrameT sdo, FrameT& sdi,
+                                             FrameT sdi_mask, bool active_level,
+                                             size_t nmax_poll_cycles) const {
+  auto rply = _spi.txrx(_id, sdo, T_SYNC, T_SYNC);
+  if (!rply) return false;
 
-template <typename HwAlarm, size_t BUF_SIZE>
-void Keyboard<HwAlarm, BUF_SIZE>::_init() const {
-  /* Check peripheral availability */
-  spi::enableClock(_spi);
-  if (LL_SPI_IsEnabled(_spi)) {
-    PRINTE("SPI already enabled: uncaught conflict");
-    exit(-4);
-  }
-
-  /* Initialize GPIO peripheral */
-  for (const auto &cfg : {_miso, _mosi, _sclk}) {
-    gpio::enableClock(cfg.gpio);
-    LL_GPIO_InitTypeDef gpio_init{
-        .Pin = cfg.pin,
-        .Mode = LL_GPIO_MODE_ALTERNATE,
-        .Speed = LL_GPIO_SPEED_FREQ_LOW,
-        .OutputType = LL_GPIO_OUTPUT_PUSHPULL,
-        .Pull = LL_GPIO_PULL_NO,
-        .Alternate = cfg.af};
-    LL_GPIO_Init(cfg.gpio, &gpio_init);
-  }
-  LL_GPIO_SetPinPull(_miso.gpio, _miso.pin, LL_GPIO_PULL_DOWN);
-
-  /* Initialize SPI peripheral */
-  spi::enableClock(_spi);
-  LL_SPI_InitTypeDef spi_init{.TransferDirection = LL_SPI_FULL_DUPLEX,
-                              .Mode = LL_SPI_MODE_MASTER,
-                              .DataWidth = LL_SPI_DATAWIDTH_16BIT,
-                              .ClockPolarity = _cpol,
-                              .ClockPhase = _cpha,
-                              .NSS = LL_SPI_NSS_SOFT,
-                              .BaudRate = _baud_rate,
-                              .BitOrder = LL_SPI_MSB_FIRST,
-                              .CRCCalculation = LL_SPI_CRCCALCULATION_DISABLE};
-  LL_SPI_Init(_spi, &spi_init);
-
-  /* Enable SPI in master mode */
-  LL_SPI_SetStandard(_spi, LL_SPI_PROTOCOL_MOTOROLA);
-  LL_SPI_Enable(_spi);
-}
-
-template <typename HwAlarm, size_t BUF_SIZE>
-void Keyboard<HwAlarm, BUF_SIZE>::_deinit() const {
-  /* Wait for SPI activity to terminate */
-  while (LL_SPI_IsActiveFlag_RXNE(_spi));
-  while (LL_SPI_IsActiveFlag_BSY(_spi));
-
-  /* Disable SPI */
-  LL_SPI_DeInit(_spi);
-  for (const auto &cfg : {_miso, _mosi, _sclk}) {
-    LL_GPIO_InitTypeDef gpio_init{.Pin = cfg.pin, .Mode = LL_GPIO_MODE_ANALOG};
-    LL_GPIO_Init(cfg.gpio, &gpio_init);
-  }
-}
-
-template <typename HwAlarm, size_t BUF_SIZE>
-uint16_t Keyboard<HwAlarm, BUF_SIZE>::_txrx(uint16_t mosi_data) const {
-  /* Slave device updates data on NSS edges */
-  constexpr size_t nselect = 5;
-
-  /* Select slave */
-  for (size_t i = 0; i < nselect; ++i) _nss.gpio->BSRR = _nss.pin << 16;
-
-  while (!LL_SPI_IsActiveFlag_TXE(_spi));
-  LL_SPI_TransmitData16(_spi, mosi_data);
-
-  while (!LL_SPI_IsActiveFlag_RXNE(_spi));
-  const auto rply = LL_SPI_ReceiveData16(_spi);
-
-  /* Deselect slave */
-  for (size_t i = 0; i < nselect; ++i) _nss.gpio->BSRR = _nss.pin;
-
-  //PRINTD("SPI Keyboard Slave: 0x%04X", rply);
-  //PRINTD("SPI Master        : 0x%04X", mosi_data);
-
-  return rply;
-}
-
-template <typename HwAlarm, size_t BUF_SIZE>
-void Keyboard<HwAlarm, BUF_SIZE>::_reset(bool enable) {
-  /* Restart slave device */
-  _txrx(MOSI_WEN | (enable & MOSI_CEN) | MOSI_BCLR);
-
-  /* Restart parsing chain */
-  _scparser.reset();
-  _kmapper.reset();
-}
-
-template <typename HwAlarm, size_t BUF_SIZE>
-void Keyboard<HwAlarm, BUF_SIZE>::reset(bool enable) {
-  _init();
-  _reset(enable);
-  _deinit();
-}
-
-template <typename HwAlarm, size_t BUF_SIZE>
-auto Keyboard<HwAlarm, BUF_SIZE>::_peek() -> CharT {
-  CharT c{};
-
-  /* Already initialized ... */
-  const auto rply = _txrx();
-
-  if (!(rply & MISO_EN)) {
-    PRINTD("PS2 controller disabled. Enabling ...");
-    _txrx(MOSI_WEN | MOSI_CEN | MOSI_BCLR);
-  } else if (rply & (MISO_FE | MISO_PE | MISO_CTO | MISO_RTO)) {
-    PRINTE("Communication error. Resetting ...");
-    _reset();
-  } else {
-    if (rply & MISO_OE) PRINTD("Overrun error detected");
-
-    if (rply & MISO_RXV) {
-      const auto pk = _scparser.parse(static_cast<uint8_t>(rply >> 8));
-      c = _kmapper.put(pk);
+  while (nmax_poll_cycles--) {
+    _hw_alarm.delay(T_POLL);
+    rply = _spi.txrx(_id, 0, T_SYNC, T_SYNC);
+    if (!rply) return false;
+    if (static_cast<bool>(*rply & sdi_mask) == active_level) {
+      sdi = *rply;
+      _hw_alarm.delay(T_GAP);
+      return true;
     }
   }
+  return false;
+}
+
+template <typename SpiMaster, typename HwAlarm>
+bool Keyboard<SpiMaster, HwAlarm>::_trySet(bool caps_lock,
+                                           bool num_lock) const {
+  constexpr FrameT ACK_CODE = 0xFA;
+  constexpr FrameT CMD_CODE = 0xED;
+  const auto CMD_ARG = (static_cast<FrameT>(num_lock) << 1) |
+                       (static_cast<FrameT>(caps_lock) << 2);
+
+  FrameT sdi;
+
+  if (!_pollTxRx(MOSI_SEND | (CMD_CODE << 8), sdi, MISO_TXC)) return false;
+  PRINTD("[System] -- 0x%02X --> [Keyboard]", CMD_CODE);
+
+  if (!_pollTxRx(MOSI_WEN | MOSI_CEN, sdi, MISO_RXV)) return false;
+  PRINTD("[System] <-- 0x%02X -- [Keyboard]", (sdi >> 8));
+
+  if (!_pollTxRx(MOSI_SEND | (CMD_ARG << 8), sdi, MISO_TXC)) return false;
+  PRINTD("[System] -- 0x%02X --> [Keyboard]", CMD_ARG);
+
+  if (!_pollTxRx(MOSI_WEN | MOSI_CEN, sdi, MISO_RXV)) return false;
+  PRINTD("[System] <-- 0x%02X -- [Keyboard]", (sdi >> 8));
+
+  return (sdi >> 8) == ACK_CODE;
+}
+
+template <typename SpiMaster, typename HwAlarm>
+int Keyboard<SpiMaster, HwAlarm>::open(OFile& ofile) {
+  if (ofile.mode != FREAD) return -EINVAL;
+
+  /* Check configuration options were set */
+  if (!_ssn.gpio || !_max_fclk_hz) return -ENOTSUP;
+
+  /* Try to register with the master */
+  auto id = _spi.addSlave(_ssn, std::numeric_limits<FrameT>::digits, _cpol,
+                          _cpha, _max_fclk_hz);
+  if (!id) return -ENOMEM;
+  _id = *id;
+
+  /* Issue a reset for the PS/2 controller and its FIFO */
+  if (FrameT sdi; !_pollTxRx(MOSI_RST, sdi, MISO_EN)) return -EIO;
+  PRINTD("PS/2 Controller and FIFO reset");
+
+  /* Reset the state */
+  if (!_trySet(false, false)) return -EIO;
+  PRINTE("Cleared LED state");
+
+  _state = {};
+
+  return 0;
+}
+
+template <typename SpiMaster, typename HwAlarm>
+int Keyboard<SpiMaster, HwAlarm>::_tryRead(uint8_t& scan_code) const {
+  auto rply = _spi.txrx(_id, 0, T_SYNC, T_SYNC);
+  if (!rply) return -EIO;
+
+  const FrameT sdo = *rply;
+
+  const bool has_data = sdo & MISO_RXV;
+  if (has_data) scan_code = sdo >> 8;
+
+  /* Prepare next read attempt */
+  const auto enabled = sdo & MISO_EN;
+  const auto ps2_rx_err = sdo & (MISO_FE | MISO_PE | MISO_CTO);
+  if (!enabled || ps2_rx_err) {
+    PRINTD(
+        "Peripheral stalled. Resetting... "
+        "[en = %u, fe = %u, pe = %u, cto = %u]",
+        enabled, (sdo & MISO_FE), (sdo & MISO_PE), (sdo & MISO_CTO));
+
+    _spi.txrx(_id, MOSI_RST, T_SYNC, T_SYNC);
+    _hw_alarm.delay(T_GAP);
+  }
+
+  if (sdo & MISO_OE) PRINTD("Overrun detected");
+
+  return has_data;
+}
+
+template <typename SpiMaster, typename HwAlarm>
+bool Keyboard<SpiMaster, HwAlarm>::_getCapsLock() const {
+  return (_state.caps_lock >> 1) ^ (_state.caps_lock & 1);
+}
+
+template <typename SpiMaster, typename HwAlarm>
+bool Keyboard<SpiMaster, HwAlarm>::_getNumLock() const {
+  return (_state.num_lock >> 1) ^ (_state.num_lock & 1);
+}
+
+template <typename SpiMaster, typename HwAlarm>
+char Keyboard<SpiMaster, HwAlarm>::_map(UniKey k) const {
+  const auto shift = _state.lshift || _state.rshift;
+  const auto caps_lock = _getCapsLock();
+  const auto num_lock = _getNumLock();
+
+  const auto idx = (_state.alt_gr << 1) | shift;
+  const auto idx_caps = idx ^ caps_lock;
+
+  const auto ascii_lut = AsciiLut()[static_cast<uint8_t>(k)];
+  auto c = ascii_lut[idx];
+
+  if ((UniKey::KP_7 <= k && k <= UniKey::KP_ENTER) || k == UniKey::KP_EQUAL)
+    return !isdigit(c) || num_lock ? c : 0;
+
+  if (isalpha(c)) c = ascii_lut[idx_caps];
+
   return c;
 }
 
-template <typename HwAlarm, size_t BUF_SIZE>
-bool Keyboard<HwAlarm, BUF_SIZE>::available() {
-  _init();
-  const auto c = _peek();
-  _deinit();
+template <typename SpiMaster, typename HwAlarm>
+char Keyboard<SpiMaster, HwAlarm>::_step(uint8_t scan_code) {
+  char mapped_key{};
+  const auto [action, uni_key] = _parser.parse(scan_code);
 
-  return c != CharT{};
-}
+  if (action == ScanCodeParser::RESET)
+    _state = {};
+  else if (action != ScanCodeParser::NONE) {
+    const auto is_make = (action == ScanCodeParser::MAKE);
+    /*         is_break     = (action == ScanCodeParser::BREAK)
+     *                      = !is_make                          */
 
-template <typename HwAlarm, size_t BUF_SIZE>
-auto Keyboard<HwAlarm, BUF_SIZE>::getLine() -> const
-    typename KeyMapper<BUF_SIZE>::String & {
-  CharT c;
+    switch (uni_key) {
+      case UniKey::KB_CAPSLOCK:
+        if (!(_state.caps_lock & 1) && is_make) {
+          _state.caps_lock =
+              KeyState{static_cast<uint8_t>(1 + _state.caps_lock)};
+          if (!_trySet(_getCapsLock(), _getNumLock()))
+            PRINTE("Failed to set LED state");
+        } else if ((_state.caps_lock & 1) && !is_make) {
+          _state.caps_lock = KeyState{
+              static_cast<uint8_t>((_state.caps_lock + 1) & (NKEYSTATES - 1))};
+        }
+        break;
 
-  _init();
-  while ((c = _peek()) != '\n') {
-    _hw_alarm.delay(150ms);
+      case UniKey::KB_NUMLOCK:
+        if (!(_state.num_lock & 1) && is_make) {
+          _state.num_lock = KeyState{static_cast<uint8_t>(1 + _state.num_lock)};
+          if (!_trySet(_getCapsLock(), _getNumLock()))
+            PRINTE("Failed to set LED state");
+        } else if ((_state.num_lock & 1) && !is_make) {
+          _state.num_lock = KeyState{
+              static_cast<uint8_t>((_state.num_lock + 1) & (NKEYSTATES - 1))};
+        }
+        break;
+
+      /* Just active/inactive on make/break */
+      case UniKey::KB_LSHIFT:
+        _state.lshift = is_make;
+        break;
+      case UniKey::KB_RSHIFT:
+        _state.rshift = is_make;
+        break;
+      case UniKey::KB_RALT:
+        _state.alt_gr = is_make;
+        break;
+
+      /* Only active on make */
+      default:
+        if (is_make) mapped_key = _map(uni_key);
+    }
   }
-  _deinit();
 
-  return _kmapper.get();
+  return mapped_key;
 }
 
-template <typename HwAlarm, size_t BUF_SIZE>
-void Keyboard<HwAlarm, BUF_SIZE>::clear() {
-  _kmapper.reset();
+template <typename SpiMaster, typename HwAlarm>
+__poll_t Keyboard<SpiMaster, HwAlarm>::poll(OFile& ofile) {
+  constexpr auto READY_MASK = POLLIN | POLLRDNORM;
+
+  if (_peek) return READY_MASK;
+
+  uint8_t scan_code;
+  const auto ret = _tryRead(scan_code);
+  if (ret < 0) return POLLERR;
+  if (!ret) return 0;
+
+  return ((_peek = _step(scan_code))) ? READY_MASK : 0;
 }
 
+template <typename SpiMaster, typename HwAlarm>
+int Keyboard<SpiMaster, HwAlarm>::_getc(char& c) {
+  uint8_t scan_code;
+  char cc{};
+
+  do {
+    const auto ret = _tryRead(scan_code);
+    if (ret > 0)
+      cc = _step(scan_code);
+    else if (ret < 0)
+      return ret;
+
+    _hw_alarm.delay(T_POLL);
+  } while (!cc);
+
+  c = cc;
+  return 1;
+}
+
+template <typename SpiMaster, typename HwAlarm>
+ssize_t Keyboard<SpiMaster, HwAlarm>::read(OFile& ofile, char* buf,
+                                           size_t count, off_t& pos) {
+  if (!count) return 0;
+
+  if (_peek) {
+    *buf = _peek;
+    _peek = 0;
+    return 1;
+  }
+
+  if (ofile.flags & O_NONBLOCK) return -EAGAIN;
+
+  return _getc(*buf);
+}
 
 #endif  // KEYBOARD_TPP

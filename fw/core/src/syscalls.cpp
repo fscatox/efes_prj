@@ -31,6 +31,7 @@
  */
 
 #include <cerrno>
+#include <cstdarg>
 
 #include "debug.h"
 #include "main.h"
@@ -67,7 +68,7 @@ void *_sbrk(ptrdiff_t incr) {
 
   if (heap_end + incr > stack_ptr) {
     errno = ENOMEM;
-    return reinterpret_cast<void*>(-1);
+    return reinterpret_cast<void *>(-1);
   }
 
   heap_end += incr;
@@ -76,11 +77,9 @@ void *_sbrk(ptrdiff_t incr) {
 
 /* Logs the event for debugging and attempts a system reset */
 void _exit([[maybe_unused]] int status) {
-
   /* wait for ongoing debug/error transmissions to complete */
   PRINTE("Status: %d", status);
-  if (status == -1)
-    perror("Errno: ");
+  if (status == -1) perror("Errno: ");
 
   close(STDERR_FILENO);
   close(STDOUT_FILENO);
@@ -102,13 +101,9 @@ constexpr int wrapCall(int ret) {
   return ret;
 }
 
-int _close(int fd) {
-  return wrapCall(fm.close(fd));
-}
+int _close(int fd) { return wrapCall(fm.close(fd)); }
 
-int _fstat(int fd, struct stat *st) {
-  return wrapCall(fm.fstat(fd, st));
-}
+int _fstat(int fd, struct stat *st) { return wrapCall(fm.fstat(fd, st)); }
 
 int _link(const char *old_name, const char *new_name) {
   return wrapCall(FileManagerType::link(old_name, new_name));
@@ -137,5 +132,19 @@ int _unlink(const char *name) {
 int _write(int fd, const void *buf, size_t count) {
   return wrapCall(fm.write(fd, buf, count));
 }
-  
+
+/* Variadic function for compatibility with _default_fcntl.h declaration */
+int fcntl(int fd, int cmd, ...) {
+  va_list vlist;
+
+  va_start(vlist, cmd);
+  auto ret = fm.vfcntl(fd, cmd, vlist);
+  va_end(vlist);
+
+  return wrapCall(ret);
+}
+
+int select(int n, fd_set *inp, fd_set *outp, fd_set *exp, timeval *tvp) {
+  return wrapCall(fm.select(n, inp, outp, exp, tvp));
+}
 }

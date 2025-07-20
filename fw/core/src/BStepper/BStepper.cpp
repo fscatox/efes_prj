@@ -7,6 +7,7 @@
 #include "BStepper.h"
 
 #include <debug.h>
+
 #include <numeric>
 
 BStepper::BStepper(GPIO_TypeDef *gpio, TIM_TypeDef *tim, DMA_TypeDef *dma)
@@ -28,9 +29,7 @@ void BStepper::setResolution(uint16_t steps_per_rev) {
   _steps_per_rev = steps_per_rev;
 }
 
-uint16_t BStepper::getResolution() const {
-  return _steps_per_rev;
-}
+uint16_t BStepper::getResolution() const { return _steps_per_rev; }
 
 void BStepper::updateClock() {
   /* Scaled prescaler clock (milli_rev_per_minute to rev_per_second) */
@@ -39,18 +38,16 @@ void BStepper::updateClock() {
 }
 
 void BStepper::init(uint32_t preempt, uint32_t sub) {
-
   /* Initialize GPIO peripheral */
   gpio::enableClock(_gpio);
 
-  LL_GPIO_InitTypeDef gpio_init{
-      .Pin = _pins.en | _pins.ph.a.pos | _pins.ph.a.neg | _pins.ph.b.pos |
-             _pins.ph.b.neg,
-      .Mode = LL_GPIO_MODE_OUTPUT,
-      .Speed = LL_GPIO_SPEED_FREQ_LOW,
-      .OutputType = LL_GPIO_OUTPUT_PUSHPULL,
-      .Pull = LL_GPIO_PULL_NO
-  };
+  LL_GPIO_InitTypeDef gpio_init{.Pin = _pins.en | _pins.ph.a.pos |
+                                       _pins.ph.a.neg | _pins.ph.b.pos |
+                                       _pins.ph.b.neg,
+                                .Mode = LL_GPIO_MODE_OUTPUT,
+                                .Speed = LL_GPIO_SPEED_FREQ_LOW,
+                                .OutputType = LL_GPIO_OUTPUT_PUSHPULL,
+                                .Pull = LL_GPIO_PULL_NO};
   LL_GPIO_Init(_gpio, &gpio_init);
 
   /* Drive to home step (still disabled) */
@@ -69,8 +66,7 @@ void BStepper::init(uint32_t preempt, uint32_t sub) {
       .MemoryOrM2MDstDataSize = LL_DMA_MDATAALIGN_WORD,
       .Channel = _dma_channel,
       .Priority = _dma_priority,
-      .FIFOMode = LL_DMA_FIFOMODE_DISABLE
-  };
+      .FIFOMode = LL_DMA_FIFOMODE_DISABLE};
   LL_DMA_Init(_dma, _dma_stream, &dma_init);
 
   /* Initialize TIM peripheral */
@@ -105,7 +101,6 @@ void BStepper::disable() const { _gpio->BSRR = _pins.en << 16; }
 
 bool BStepper::calcTimeBase(SpeedType milli_rev_per_minute, StepType t,
                             TimRegType &psc, TimRegType &arr) const {
-
   constexpr auto psc_width = std::numeric_limits<TimRegType>::digits;
   constexpr auto arr_width = std::numeric_limits<TimRegType>::digits;
   constexpr uint64_t max_ticks = 1ULL << (psc_width + arr_width);
@@ -115,8 +110,7 @@ bool BStepper::calcTimeBase(SpeedType milli_rev_per_minute, StepType t,
       (static_cast<uint64_t>(_steps_per_rev) << t) * milli_rev_per_minute;
   const uint64_t ticks = (_sixtyk_psc_clk_hz + (den >> 1)) / den;
 
-  if (!ticks || ticks > max_ticks)
-    return false;
+  if (!ticks || ticks > max_ticks) return false;
 
   /*
    *  31      16 15       0
@@ -152,17 +146,16 @@ bool BStepper::calcTimeBase(SpeedType milli_rev_per_minute, StepType t,
 }
 
 bool BStepper::rotate(StepCountType steps, SpeedType milli_rev_per_minute,
-                      Direction d, bool block, StepType t) {
-  if (!steps)
-    return false;
+                      Direction d, StepType t) {
+  if (!steps) return false;
+  if (LL_TIM_IsEnabledCounter(_tim)) return false;
 
   /* Get TIM configuration parameters */
   constexpr auto rcr_width = std::numeric_limits<TimRCRType>::digits;
   constexpr auto max_hw_reps = static_cast<StepCountType>(1U << rcr_width);
 
   TimRegType psc, arr;
-  if (!calcTimeBase(milli_rev_per_minute, t, psc, arr))
-    return false;
+  if (!calcTimeBase(milli_rev_per_minute, t, psc, arr)) return false;
 
   /* Reset DMA transfer */
   LL_DMA_DisableStream(_dma, _dma_stream);
@@ -195,8 +188,7 @@ bool BStepper::rotate(StepCountType steps, SpeedType milli_rev_per_minute,
     /* If there is only one software repetition, the next UEV
      * starts the hardware-counted repetitions. The RCR value
      * must be preloaded now */
-    if (_sw_reps == 1)
-      LL_TIM_SetRepetitionCounter(_tim, _hw_reps - 1);
+    if (_sw_reps == 1) LL_TIM_SetRepetitionCounter(_tim, _hw_reps - 1);
 
     /* Define behavior at UEV */
     LL_TIM_SetOnePulseMode(_tim, LL_TIM_ONEPULSEMODE_REPETITIVE);
@@ -221,7 +213,6 @@ bool BStepper::rotate(StepCountType steps, SpeedType milli_rev_per_minute,
 
   /* Start rotation */
   LL_TIM_EnableCounter(_tim);
-  while (block & LL_TIM_IsEnabledCounter(_tim));
   return true;
 }
 
