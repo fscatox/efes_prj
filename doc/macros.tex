@@ -1,0 +1,48 @@
+%%
+%% Common
+%%
+
+% ** Symbols
+\renewcommand{\epsilon}{\varepsilon}
+\newcommand{\one}{\scalebox{1.2}{$\mathbbm{1}$}}
+
+% ** Complex numbers
+\let\Re\real
+\DeclareMathOperator{\Re}{Re}
+\let\Im\imaginary
+\DeclareMathOperator{\Im}{Im}
+
+% ** Fields
+\newcommand{\field}[1]{\ensuremath{\mathbb{#1}}}
+\newcommand{\C}{\field{C}}
+\newcommand{\R}{\field{R}}
+\newcommand{\N}{\field{N}}
+
+% ** Automatic sizing delimiters
+\DeclarePairedDelimiter{\pqty}{\lparen}{\rparen}
+\DeclarePairedDelimiter{\bqty}{\lbrack}{\rbrack}
+\DeclarePairedDelimiter{\Bqty}{\lbrace}{\rbrace}
+\DeclarePairedDelimiter{\abs}{\lvert}{\rvert}
+\DeclarePairedDelimiter{\avg}{\langle}{\rangle}
+\DeclarePairedDelimiter{\eval}{.}{\rvert} % to be used only as \eval*
+\DeclarePairedDelimiter{\peval}{\lparen}{\rvert}
+
+% ** Vector notation
+\newcommand{\va}[1]{\vv{\mathbf{#1}}} % vector arrow
+\newcommand{\vu}[1]{\hat{\mathbf{#1}}} % unit vector
+\newcommand{\vuG}[1]{\boldsymbol{\hat{#1}}} % unit vector Greek support
+
+% ** Differential operators
+\DeclareMathOperator{\grad}{\nabla}
+\let\div\relax
+\DeclareMathOperator{\div}{\nabla\cdot}
+\DeclareMathOperator{\curl}{\nabla\times}
+\DeclareMathOperator{\lapl}{\nabla^2}
+
+% ** Derivatives
+\newcommand{\oodif}[1]{\odif*[order=2]{#1}}
+\newcommand{\ppdv}[1]{\pdv*[order=2]{}{#1}}
+
+% ** Unit of measurement
+\DeclareSIUnit{\rpm}{rpm}
+\DeclareSIUnit{\ppm}{ppm}

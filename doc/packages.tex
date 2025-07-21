@@ -1,0 +1,119 @@
+% Input and output text encoding
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+
+%%
+%% Handy stuff
+%%
+\usepackage[english]{babel}
+\usepackage[table,xcdraw]{xcolor}
+
+% Set font size relative to the current font size
+\usepackage{relsize}
+% Space in custom commands
+\usepackage{xspace}
+% String manipulation
+\usepackage{xstring}
+% Typographical perfection
+\usepackage{microtype}
+
+% Text Companion fonts
+\usepackage{textcomp}
+% Font containing web-related icons
+\usepackage{fontawesome}
+% Format menu sequences, paths and keystrokes from lists
+\usepackage[os=win]{menukeys}
+
+%%
+%% Graphics
+%%
+\usepackage{tikz}
+\usepackage{graphicx}
+\usepackage{rotating}
+\usepackage{floatpag}
+\usepackage{changepage}
+\usepackage{subfig}
+\usepackage[percent]{overpic}
+\usepackage{caption}
+\captionsetup{
+    tableposition=top,
+    figureposition=bottom,
+    font=small,
+    format=hang, 
+    labelfont={sf,bf}
+}
+
+% Simple colour palette
+\definecolor{darkgrey}{HTML}{787878}
+\definecolor{backcolor}{HTML}{f7f7f7}
+\definecolor{accent}{HTML}{c80900}
+\definecolor{lightblue}{HTML}{00b6ff}
+
+%%
+%% Layout
+%%
+
+\usepackage{lastpage}
+\usepackage{fancyhdr}
+\usepackage{geometry}
+
+% Hyphenation for letterspacing, underlining, and more
+\usepackage{soul}
+
+% Higher quality tables
+\usepackage{booktabs}
+% Tabulars with adjustable-width columns
+\usepackage{tabularx}
+% Coloured rows, columns, cells
+\usepackage{colortbl}
+% Control layout of itemize, enumerate, description
+\usepackage[inline]{enumitem}
+
+%%
+%% Code listing
+%%
+\setminted[]{
+  frame=lines,
+  linenos=false,
+  framesep=2mm,
+  baselinestretch=1.2,
+  bgcolor=backcolor,
+  fontsize=\scriptsize,
+  samepage=false,
+  obeytabs=true,
+  tabsize=2
+}
+
+\usepackage{algpseudocode}
+
+%%
+%% Physics, Math
+%%
+
+\usepackage{siunitx}
+\sisetup{
+  detect-all=true,
+  input-digits = 0123456789\pi,
+  per-mode = symbol,
+  complex-root-position = before-number,
+  output-complex-root = j,
+  separate-uncertainty=true,
+}
+
+\usepackage{mathtools}
+\allowdisplaybreaks[1]
+\usepackage{amsfonts}
+\usepackage{amsthm}
+
+% Complex numbers for electrotechnics
+\usepackage{steinmetz}
+% Extended integrals
+\usepackage{esint}
+% Vector support
+\usepackage[e]{esvect}
+% Easy o&p derivatives
+\usepackage{derivative} 
+% Indicator function \mathbbm{1}
+\usepackage{bbm}
+% Left superscripts
+\usepackage{tensor}
