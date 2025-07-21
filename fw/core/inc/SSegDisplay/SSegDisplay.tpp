@@ -30,23 +30,18 @@ consteval auto SSegDisplay<HwAlarm, BUF_SIZE, SEG_ON_HIGH>::fmtChar()
 template <typename HwAlarm, size_t BUF_SIZE, bool SEG_ON_HIGH>
 constexpr auto SSegDisplay<HwAlarm, BUF_SIZE, SEG_ON_HIGH>::encode(CharType c)
     -> CharType {
-
   static CharType digits[]{_0, _1, _2, _3, _4, _5, _6, _7, _8, _9};
   static CharType alpha[]{
       A, B, C, D,      E, F,      NOTSUP, H, I,      J,      NOTSUP, L, NOTSUP,
       N, O, P, NOTSUP, R, NOTSUP, T,      U, NOTSUP, NOTSUP, NOTSUP, Y, NOTSUP};
 
-  if (isdigit(c))
-    return digits[c - '0'];
+  if (isdigit(c)) return digits[c - '0'];
 
-  if (isalpha(c))
-    return alpha[toupper(c) - 'A'];
+  if (isalpha(c)) return alpha[toupper(c) - 'A'];
 
-  if (isblank(c))
-    return SPACE;
+  if (isblank(c)) return SPACE;
 
-  if (isspace(c))
-    return CLEAR;
+  if (isspace(c)) return CLEAR;
 
   switch (c) {
     case '|':
@@ -79,26 +74,28 @@ template <typename HwAlarm, size_t BUF_SIZE, bool SEG_ON_HIGH>
 SSegDisplay<HwAlarm, BUF_SIZE, SEG_ON_HIGH>::SSegDisplay(USART_TypeDef *usart,
                                                          DMA_TypeDef *dma,
                                                          HwAlarm &hw_alarm)
-    : UartTx<BUF_SIZE>(usart, dma), _state(BUILD_STRING),
-      _buf_end(this->_buf.begin()), _hw_alarm(hw_alarm),
-      _alarm_cb(this, &SSegDisplay::alarm) {}
+    : UartTx<BUF_SIZE>(usart, dma),
+      _state(BUILD_STRING),
+      _buf_end(this->_buf.begin()),
+      _hw_alarm(hw_alarm),
+      _alarm_cb(this, &SSegDisplay::alarm),
+      _scrolled(true) {}
 
 template <typename HwAlarm, size_t BUF_SIZE, bool SEG_ON_HIGH>
 void SSegDisplay<HwAlarm, BUF_SIZE, SEG_ON_HIGH>::setDisplay(
-    size_t len, MilliSeconds scroll_delay) {
+    size_t len, size_t min_scroll_times, MilliSeconds scroll_delay) {
   _scroll_delay = scroll_delay;
+  _min_scroll_times = min_scroll_times;
   _disp_len = len;
 }
 
 template <typename HwAlarm, size_t BUF_SIZE, bool SEG_ON_HIGH>
 int SSegDisplay<HwAlarm, BUF_SIZE, SEG_ON_HIGH>::open(OFile &ofile) {
   /* Initialize GPIO, DMA, USART */
-  if (int ret; (ret = UartTx<BUF_SIZE>::open(ofile)) < 0)
-    return ret;
+  if (int ret; (ret = UartTx<BUF_SIZE>::open(ofile)) < 0) return ret;
 
   /* Reset peripheral? */
-  if (ofile.flags & FTRUNC)
-    LL_USART_TransmitData8(this->_usart, CLEAR);
+  if (ofile.flags & FTRUNC) LL_USART_TransmitData8(this->_usart, CLEAR);
 
   return 0;
 }
@@ -107,7 +104,7 @@ template <typename HwAlarm, size_t BUF_SIZE, bool SEG_ON_HIGH>
 int SSegDisplay<HwAlarm, BUF_SIZE, SEG_ON_HIGH>::close(OFile &ofile) {
   if (_state == TRANSFER_SCROLL) {
     /* Wait to have scrolled at least once */
-    while (!_scrolled_once);
+    while (!_scrolled);
     /* Kill scroll task */
     _hw_alarm.setAlarm(&_alarm_cb, 0);
   }
@@ -117,12 +114,10 @@ int SSegDisplay<HwAlarm, BUF_SIZE, SEG_ON_HIGH>::close(OFile &ofile) {
 
 template <typename HwAlarm, size_t BUF_SIZE, bool SEG_ON_HIGH>
 bool SSegDisplay<HwAlarm, BUF_SIZE, SEG_ON_HIGH>::wait(bool non_block) {
-
   if (_state == TRANSFER_SCROLL) {
     /* Wait to have scrolled at least once */
-    while (!_scrolled_once) {
-      if (non_block)
-        return false;
+    while (!_scrolled) {
+      if (non_block) return false;
     }
     /* Kill scroll task */
     _hw_alarm.setAlarm(&_alarm_cb, 0);
@@ -132,8 +127,7 @@ bool SSegDisplay<HwAlarm, BUF_SIZE, SEG_ON_HIGH>::wait(bool non_block) {
 
   if (_state == TRANSFER_NO_SCROLL) {
     /* Wait for ongoing transfer to complete */
-    if (!UartTx<BUF_SIZE>::wait(non_block))
-      return false;
+    if (!UartTx<BUF_SIZE>::wait(non_block)) return false;
 
     /* Clear buffer */
     _buf_end = this->_buf.begin();
@@ -149,10 +143,8 @@ ssize_t SSegDisplay<HwAlarm, BUF_SIZE, SEG_ON_HIGH>::write(OFile &ofile,
                                                            const char *buf,
                                                            size_t count,
                                                            off_t &pos) {
-
   if (_state != BUILD_STRING) {
-    if (!wait(ofile.flags & FNONBLOCK))
-      return -EAGAIN;
+    if (!wait(ofile.flags & FNONBLOCK)) return -EAGAIN;
     pos = 0;
   }
 
@@ -183,11 +175,12 @@ ssize_t SSegDisplay<HwAlarm, BUF_SIZE, SEG_ON_HIGH>::write(OFile &ofile,
     } else { /* It requires scrolling (head & tail separated with a space) */
       *(_buf_end++) = encode(' ');
       _scroll_ptr = this->_buf.begin() + 1;
-      _scrolled_once = false;
+      _scrolled = false;
+      _nscroll = 0;
       this->startDMATransfer(this->_buf.begin(), _disp_len);
       _state = TRANSFER_SCROLL;
       _hw_alarm.setAlarm(_scroll_delay, &_alarm_cb, 0);
-      while (!((ofile.flags & FNONBLOCK) || _scrolled_once));
+      while (!((ofile.flags & FNONBLOCK) || _scrolled));
     }
   }
 
@@ -199,7 +192,6 @@ template <typename HwAlarm, size_t BUF_SIZE, bool SEG_ON_HIGH>
 off_t SSegDisplay<HwAlarm, BUF_SIZE, SEG_ON_HIGH>::llseek(OFile &ofile,
                                                           off_t offset,
                                                           int whence) {
-
   const off_t new_pos = offset + (whence == SEEK_CUR ? ofile.pos : 0);
 
   /* If transmitting, allowed to clear the display by seeking to zero
@@ -213,8 +205,7 @@ off_t SSegDisplay<HwAlarm, BUF_SIZE, SEG_ON_HIGH>::llseek(OFile &ofile,
     _buf_end = this->_buf.begin() + new_pos;
   else {
     /* wait for the transmission to end */
-    if (!wait(ofile.flags & FNONBLOCK))
-      return -EAGAIN;
+    if (!wait(ofile.flags & FNONBLOCK)) return -EAGAIN;
     /* clear the display */
     LL_USART_TransmitData8(this->_usart, CLEAR);
     _state = TRANSFER_NO_SCROLL;
@@ -234,11 +225,12 @@ void SSegDisplay<HwAlarm, BUF_SIZE, SEG_ON_HIGH>::alarm() {
   if (_scroll_ptr + _disp_len == _buf_end) {
     std::rotate(this->_buf.begin(), _scroll_ptr, _buf_end);
     _scroll_ptr = this->_buf.begin();
-    _scrolled_once = true;
+    _nscroll += 1;
+    if (_nscroll == _min_scroll_times) _scrolled = true;
   }
 
   this->startDMATransfer(_scroll_ptr, _disp_len);
   _scroll_ptr = std::next(_scroll_ptr);
 }
 
-#endif // SSEGDISPLAY_TPP
+#endif  // SSEGDISPLAY_TPP

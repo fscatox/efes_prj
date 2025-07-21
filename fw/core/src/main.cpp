@@ -24,19 +24,21 @@
 
 using namespace std::chrono_literals;
 
+static constexpr auto HCLK_FREQUENCY_HZ = 64000000;
 static constexpr auto NMAX_MOTION_SEGMENTS = 8;
 static constexpr auto STEPS_PER_REV = 200;
 static constexpr auto NDISPLAYS_SSEG = 6;
+static constexpr auto MIN_SCROLL_TIMES = 2;
 static constexpr auto SCROLL_DELAY = 500ms;
-static constexpr auto DISPLAY_HOLD = 3s;
-static constexpr auto DISPLAY_HOLD_LONG = 6s;
+static constexpr auto DISPLAY_HOLD = 2s;
 static constexpr auto SPI_FCLK_MAX_Hz = 8e6;
 static constexpr auto IBUF_SIZE = 80;
 static constexpr ctll::fixed_string RX_PATTERN =
     R"((?:\+|-)?([0-9]{1,3})(?:\.([0-9]))?\n)";
 static constexpr auto DEGREES_360 = 360;
 static constexpr auto ADC_FULLSCALE_mV = 4096;
-static constexpr auto MILLI_RPM_MIN = 50'000;
+static constexpr auto MILLI_RPM_MIN = 2'500;
+static constexpr auto MILLI_RPM_SOL = 25'000;
 static constexpr auto MILLI_RPM_MAX = 400'000;
 
 /* Lazy construction of local resource managers */
@@ -97,7 +99,7 @@ static void systemClockConfig();
   SSeg_Display().setFrame(LL_USART_PARITY_EVEN, LL_USART_STOPBITS_1);
   SSeg_Display().setBaudRate(115200, LL_USART_OVERSAMPLING_16);
   SSeg_Display().setDMATransfer(LL_DMA_STREAM_7, LL_DMA_CHANNEL_4);
-  SSeg_Display().setDisplay(NDISPLAYS_SSEG, SCROLL_DELAY);
+  SSeg_Display().setDisplay(NDISPLAYS_SSEG, MIN_SCROLL_TIMES, SCROLL_DELAY);
 
   /* Initialize SPI master over SPI3 */
   Spi_Master().init({.pin_cfg = {.gpio = MISO_GPIO_Port, .pin = MISO_Pin},
@@ -149,9 +151,16 @@ static void systemClockConfig();
   const auto kbd_fd = fileno(kbd);
   if (kbd_fd < 0) exit(-1);
 
+  /* Sign of life */
+  fprintf(display_out, "Run...\n");
+  Stepper().enable();
+  Stepper().rotate(STEPS_PER_REV, MILLI_RPM_SOL, BStepper::CCW, true);
+  Stepper().rotate(STEPS_PER_REV, MILLI_RPM_SOL, BStepper::CW, true);
+  Stepper().disable();
+  PRINTD("Sign of life completed");
+
   /* Notify idle state */
-  fprintf(display_out, "Idle\n");
-  Hw_Alarm().delay(DISPLAY_HOLD);
+  fprintf(display_out, "\rIdle\n");
   PRINTD("Starting in IDLE state");
 
   while (true) {
@@ -163,7 +172,6 @@ static void systemClockConfig();
       PRINTD("MotionPatter cache cleared: %u/%u", mp.size(), mp.max_size());
 
       fprintf(display_out, "\rIdle\n");
-      Hw_Alarm().delay(DISPLAY_HOLD);
       PRINTD("Back to IDLE state");
     }
 
@@ -176,10 +184,10 @@ static void systemClockConfig();
         Stepper().enable();
         auto ms_it = mp.begin();
         do {
-          auto started = Stepper().rotate(
-              ms_it->steps, ms_it->milli_rev_per_minute, ms_it->direction);
-
-          if (started && ++ms_it == mp.end()) ms_it = mp.begin();
+          if (Stepper().rotate(ms_it->steps, ms_it->milli_rev_per_minute,
+                               ms_it->direction)) {
+            if (++ms_it == mp.end()) ms_it = mp.begin();
+          }
         } while (!Push_Button().shortPress());
 
         Stepper().disable();
@@ -192,7 +200,6 @@ static void systemClockConfig();
       }
 
       fprintf(display_out, "\rIdle\n");
-      Hw_Alarm().delay(DISPLAY_HOLD);
       PRINTD("Back to IDLE state");
     }
 
@@ -203,16 +210,16 @@ static void systemClockConfig();
 
     if (select(kbd_fd + 1, &rfds, nullptr, nullptr, &tv) > 0) {
       fprintf(display_out, "\rInput\n");
-      Hw_Alarm().delay(DISPLAY_HOLD);
       PRINTD("Input data available");
 
       /* Acquire full line while blocking */
       std::array<char, IBUF_SIZE> buf;
 
       bool is_line{}, is_cstr;
+      size_t len;
       do {
         if ((is_cstr = fgets(buf.data(), buf.size(), kbd))) {
-          const auto len = strlen(buf.data());
+          len = strlen(buf.data());
           is_line = (buf[len - 1] == '\n');
           PRINTD("Keyboard: %s", buf.data());
         }
@@ -220,11 +227,14 @@ static void systemClockConfig();
 
       if (is_line) {
         /* Check line validity against regex pattern */
-        if (const auto mr = ctre::match<RX_PATTERN>(buf.cbegin(), buf.cend())) {
+        if (const auto mr =
+                ctre::match<RX_PATTERN>(buf.cbegin(), buf.cbegin() + len)) {
           /* Check for available space in the NVS */
           if (const auto ms_idx = mp.size(); ms_idx < mp.max_size()) {
             /* Acquire ADC sample */
             if (uint16_t pot_mv; fread(&pot_mv, sizeof(pot_mv), 1, adc)) {
+              PRINTD("ADC: %u.%0u mV", pot_mv / 1000, pot_mv % 1000);
+
               /* Construct motion segment */
               MotionPatternType::MotionSegment ms{};
 
@@ -242,21 +252,21 @@ static void systemClockConfig();
                * the ADC to [50, 400] rpm */
               ms.milli_rev_per_minute =
                   MILLI_RPM_MIN +
-                  iround(pot_mv * MILLI_RPM_MAX, ADC_FULLSCALE_mV);
+                  iround(pot_mv * (MILLI_RPM_MAX - MILLI_RPM_MIN),
+                         ADC_FULLSCALE_mV);
 
               /* Log new motion segment in proper units after rounding */
               angle_x10 = (ms.steps * DEGREES_360 * 10) / STEPS_PER_REV;
-              const auto [rpm_ip, rpm_fp] =
-                  std::div(ms.milli_rev_per_minute, 1000);
-              const auto [angle_ip, angle_fp] = std::div(
-                  (ms.direction == BStepper::CCW ? 1 : -1) * angle_x10, 1000);
+              auto [rpm_ip, rpm_fp] = std::div(ms.milli_rev_per_minute, 1000);
+              auto [angle_ip, angle_fp] = std::div(angle_x10, 10);
+              angle_ip *= (ms.direction == BStepper::CCW ? 1 : -1);
 
               rewind(display_out);
-              fprintf(display_out, "[%u] %u.%u %d.%d\n", ms_idx, rpm_ip, rpm_fp,
-                      angle_ip, angle_fp);
-              Hw_Alarm().delay(DISPLAY_HOLD_LONG);
-              PRINTD("Motion segment: [%u] %u.%u rpm %d.%d deg", ms_idx, rpm_ip,
-                     rpm_fp, angle_ip, angle_fp);
+              fprintf(display_out, "[%u] %u.%03u %d.%01d\n", ms_idx, rpm_ip,
+                      rpm_fp, angle_ip, angle_fp);
+              Hw_Alarm().delay(DISPLAY_HOLD);
+              PRINTD("Motion segment: [%u] %u.%03u rpm %d.%01d deg", ms_idx,
+                     rpm_ip, rpm_fp, angle_ip, angle_fp);
 
               /* Commit to NVS */
               if (!mp.emplaceBack(ms))
@@ -264,7 +274,7 @@ static void systemClockConfig();
 
             } else {
               rewind(display_out);
-              fprintf(display_out, "ADC Fail\n");
+              fprintf(display_out, "Err-4 ADC Fail\n");
               Hw_Alarm().delay(DISPLAY_HOLD);
               PRINTD("fread(, adc) failed", ms_idx, mp.max_size());
             }
@@ -282,21 +292,18 @@ static void systemClockConfig();
         }
       } else {
         rewind(display_out);
-        fprintf(display_out, "Err-2 IO Failure\n");
+        fprintf(display_out, "Err-5 IO Failure\n");
         Hw_Alarm().delay(DISPLAY_HOLD);
         PRINTD("fgets(, kbd) failed");
       }
 
       fprintf(display_out, "\rIdle\n");
-      Hw_Alarm().delay(DISPLAY_HOLD);
       PRINTD("Back to IDLE state");
     }
   }
 }
 
 static void systemClockConfig() {
-  const uint32_t HCLK_FREQUENCY_HZ = 64000000;
-
   /* On reset, the 16 MHz internal RC oscillator is selected.
    * Enable clock to power interface and system configuration controller */
   LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_PWR);

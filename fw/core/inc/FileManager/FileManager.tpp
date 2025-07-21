@@ -2,6 +2,8 @@
  * @file     FileManager.tpp
  * @author   Fabio Scatozza <s315216@studenti.polito.it>
  * @date     18.01.2025
+ * @see      https://github.com/torvalds/linux/blob/master/fs/select.c
+ *           https://github.com/torvalds/linux/blob/master/fs/fcntl.c
  */
 
 #ifndef FILEMANAGER_TPP
@@ -235,21 +237,21 @@ int FileManager<N_NODES, NMAX_FD>::select(int n, fd_set *inp, fd_set *outp,
    * Monitoring of such readiness is implemented with a polling loop
    */
   while (true) {
-    auto inp_ = inp->__fds_bits;
-    auto outp_ = outp->__fds_bits;
-    auto exp_ = exp->__fds_bits;
+    auto inp_ = inp ? inp->__fds_bits : nullptr;
+    auto outp_ = outp ? outp->__fds_bits : nullptr;
+    auto exp_ = exp ? exp->__fds_bits : nullptr;
 
     auto rinp = ret_in.__fds_bits;
     auto routp = ret_out.__fds_bits;
     auto rexp = ret_ex.__fds_bits;
 
     /* Over bitmaps */
-    for (auto i = 0; i < n; ++rinp, ++routp, ++rexp, ++inp_, ++outp_, ++exp_) {
+    for (auto i = 0; i < n; ++rinp, ++routp, ++rexp) {
       constexpr int bitmap_nbits = sizeof(fd_mask) * 8;
 
-      const auto in = *inp_;
-      const auto out = *outp_;
-      const auto ex = *exp_;
+      const auto in = inp_ ? *inp_++ : 0;
+      const auto out = outp_ ? *outp_++ : 0;
+      const auto ex = exp_ ? *exp_++ : 0;
       const auto all = in | out | ex;
 
       if (!all) /* Skip entire bitmap */
@@ -287,9 +289,9 @@ int FileManager<N_NODES, NMAX_FD>::select(int n, fd_set *inp, fd_set *outp,
     }
 
     if (set_cnt || timed_out) {
-      *inp = ret_in;
-      *outp = ret_out;
-      *exp = ret_ex;
+      if (inp) *inp = ret_in;
+      if (outp) *outp = ret_out;
+      if (exp) *exp = ret_ex;
       return set_cnt;
     }
   }

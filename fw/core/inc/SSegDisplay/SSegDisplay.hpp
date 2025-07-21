@@ -12,13 +12,14 @@
 
 template <typename HwAlarm, size_t BUF_SIZE, bool SEG_ON_HIGH>
 class SSegDisplay final : public UartTx<BUF_SIZE> {
-public:
+ public:
   using CharType = uint8_t;
   using MilliSeconds = typename HwAlarm::MilliSeconds;
 
   SSegDisplay(USART_TypeDef *usart, DMA_TypeDef *dma, HwAlarm &hw_alarm);
 
-  void setDisplay(size_t len, MilliSeconds scroll_delay = MilliSeconds{250});
+  void setDisplay(size_t len, size_t min_scroll_times,
+                  MilliSeconds scroll_delay = MilliSeconds{250});
 
   int open(OFile &ofile) override;
   int close(OFile &ofile) override;
@@ -27,8 +28,7 @@ public:
                 off_t &pos) override;
   off_t llseek(OFile &ofile, off_t offset, int whence) override;
 
-private:
-
+ private:
   /**
    * @brief Compile-time character encoding helper function
    *
@@ -102,11 +102,13 @@ private:
   HwAlarm &_hw_alarm;
   CallbackType _alarm_cb;
   MilliSeconds _scroll_delay;
+  size_t _min_scroll_times;
   size_t _disp_len;
-  volatile bool _scrolled_once;
+  volatile bool _scrolled;
+  volatile size_t _nscroll;
   volatile typename BufferType::iterator _scroll_ptr;
 };
 
 #include "SSegDisplay.tpp"
 
-#endif // SSEGDISPLAY_HPP
+#endif  // SSEGDISPLAY_HPP

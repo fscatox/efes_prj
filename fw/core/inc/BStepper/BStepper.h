@@ -45,7 +45,7 @@ class BStepper {
   void disable() const;
 
   bool rotate(StepCountType steps, SpeedType milli_rev_per_minute, Direction d,
-              StepType t = FULL);
+              bool block = false, StepType t = FULL);
 
  private:
   /* DMA design forces to use advanced timers, which are 16 bit only */
