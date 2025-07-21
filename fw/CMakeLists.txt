@@ -26,6 +26,14 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Create project target
 add_executable(${CMAKE_PROJECT_NAME})
 
+# Generate program image
+set(BIN_FILE ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PROJECT_NAME}.bin)
+add_custom_command(TARGET ${CMAKE_PROJECT_NAME}
+        POST_BUILD
+        COMMAND ${CMAKE_OBJCOPY} -O binary $<TARGET_FILE:${CMAKE_PROJECT_NAME}> ${BIN_FILE}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+        COMMENT "Generating ${BIN_FILE}")
+
 # Additional options
 target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE
         -save-temps
