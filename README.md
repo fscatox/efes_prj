@@ -2,6 +2,8 @@
 
 The project scratches the itch of designing a full system from the ground up, from the hardware synthesized on an FPGA or put together on a perfboard, up to the software abstractions that run on an MCU.
 
+![System Running](doc/gfx/demo.gif)
+
 While trying my hand at digital verification with SystemVerilog and the UVM (Universal Verification Methodology) in past projects, I fell in love with the language: here I chose it also for hardware modeling. The key blocks of the design are verified to some extent: there is no formal verification plan, no functional or code coverage, but the DUTs are exercised with some random stimuli against abstract golden models written with SystemVerilog's verification constructs.
 
 *What could be salvaged for some future projects* ?
@@ -15,11 +17,13 @@ Considering the amount of I/O peripherals involved in the project, I really want
 
 Additional information can be found under [doc/](doc/). The design of the [perfboard](doc/motor_bd.vrt) is in [VeroRoute](https://sourceforge.net/projects/veroroute/ "Qt based Veroboard, Perfboard, and PCB layout and routing application") format.
 
-![System Block Diagram](doc/gfx/system_diagram.png)
-
 ## Theory of Operation
 
-The system implements an interface to program the movement pattern for a bipolar stepper motor and execute it on demand. The pattern is committed to non-volatile storage and consists of a sequence of data points, each representing a circular motion segment defined by angular velocity and displacement. During execution, the data points are retrieved in a circular fashion from memory, and are converted into motor-driving stimuli. The interface is operated as follows:
+The system implements an interface to program the movement pattern for a bipolar stepper motor and execute it on demand. The pattern is committed to non-volatile storage and consists of a sequence of data points, each representing a circular motion segment defined by angular velocity and displacement. During execution, the data points are retrieved in a circular fashion from memory, and are converted into motor-driving stimuli.
+
+![System Block Diagram](doc/gfx/system_diagram.png)
+
+The interface is operated as follows:
 
 - The movement pattern is cleared by pressing and holding the user push button for at least 1 s. Successful clearing is acknowledged by displaying *CLEAr* on the 7-segment displays.
 
