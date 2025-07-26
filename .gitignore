@@ -1,10 +1,14 @@
-fpga/quartus/
-fpga/questa/
+doc/gfx/*-eps-converted-to.pdf
+doc/doxy/html
+doc/doxy/*.html
+doc/report/build
+
+fpga/quartus
+fpga/questa
 
 fw/.idea
 fw/.cache
 fw/.clangd
 fw/.clang-format
 fw/cmake-build*
-fw/sdk
 fw/scratch

@@ -2,7 +2,7 @@
 # Author        : Fabio Scatozza <s315216@studenti.polito.it>
 # Date          : 28.12.2024
 # Description   : toolchain configuration file for ARMv7E-M with
-#                 FP and SVD extensions
+#                 FP and DSP extensions
 
 # Add "cmake/" to search path of include() and find_package()
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR})

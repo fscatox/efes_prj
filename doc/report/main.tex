@@ -1,7 +1,7 @@
 \documentclass[]{article}
 
 %% Minted work-around
-\usepackage[section]{minted}
+\usepackage[section, outputdir=build]{minted}
 \input{packages}
 
 %%
@@ -78,7 +78,7 @@ In this context, the document presents a small-scale project aimed at addressing
 
 \begin{figure}
     \centering
-    \includegraphics[width=\linewidth]{gfx/system_diagram.eps}
+    \includegraphics[width=\linewidth]{../gfx/system_diagram.eps}
     \caption{System block diagram}
     \label{fig:sys}
 \end{figure}
@@ -112,10 +112,10 @@ Referring to the system block diagram in~\cref{fig:sys}, the interface is operat
 \begin{figure}
     \centering
     \subfloat[][Quartus Prime RTL view\label{fig:fpga_rtl}]{
-        \includegraphics[width=\linewidth]{gfx/RTLview.pdf}
+        \includegraphics[width=\linewidth]{../gfx/RTLview.pdf}
     }\\
     \subfloat[][Signals mapped to the 2x20 header for interfacing with the MCU\label{fig:fpga_port}]{
-        \includegraphics[scale=.65]{gfx/GPIOHeader.eps}
+        \includegraphics[scale=.65]{../gfx/GPIOHeader.eps}
     }
     \caption{DE1-SoC board subsystems}
     \label{fig:de1_soc}
@@ -123,14 +123,14 @@ Referring to the system block diagram in~\cref{fig:sys}, the interface is operat
 
 \begin{figure}
     \centering
-    \includegraphics[width=.65\linewidth]{gfx/mcu_pinout.png}
+    \includegraphics[width=.65\linewidth]{../gfx/mcu_pinout.png}
     \caption{Microcontroller pinout}
     \label{fig:mcu_pins}
 \end{figure}
 
 \begin{figure}
     \centering
-    \includegraphics[width=.8\linewidth]{gfx/motor_board.eps}
+    \includegraphics[width=.8\linewidth]{../gfx/motor_board.eps}
     \caption{Drive circuit for the bipolar stepper motor. The L6506 senses and controls the current in the motor windings, which are energized with the dual full-bridge driver L298.}
     \label{fig:motor_bd}
 \end{figure}
@@ -215,10 +215,10 @@ The four signals of the ADC serial interface are routed through the FPGA fabric 
 \begin{figure}
     \centering
     \subfloat[][System receiving data. The device generates data while the clock is high.]{
-        \includegraphics[width=.7\linewidth]{gfx/ps2_timing_rx.eps}
+        \includegraphics[width=.7\linewidth]{../gfx/ps2_timing_rx.eps}
     }\\
     \subfloat[][System sending data. The system generates data while the clock is low; following the parity bit, the device detects the stop bit and pulls the data line low while the clock is high (dashed portion of the waveform).]{
-        \includegraphics[width=.9\linewidth]{gfx/ps2_timing_tx.eps}
+        \includegraphics[width=.9\linewidth]{../gfx/ps2_timing_tx.eps}
     }
     \caption{PS/2 timing diagrams. The clock period ranges from \qtyrange{60}{100}{\micro\s}; the maximum request-to-send duration is \qty{15}{\milli\s}.}
     \label{fig:ps2_timing}
@@ -240,7 +240,7 @@ The timing diagram for receiving and sending data are shown in~\cref{fig:ps2_tim
 
 \begin{figure}
     \centering
-    \includegraphics[width=\linewidth]{gfx/ps2_peripheral_spi_interface.eps}
+    \includegraphics[width=\linewidth]{../gfx/ps2_peripheral_spi_wrapper.eps}
     \caption{SPI-compatible PS/2 controller peripheral design. The module implements the PS/2 protocol for exchanging data with a PS/2 device, exposing its control, status, and data registers through SPI. Data received from the device is buffered in an SRAM FIFO. The PS/2 and SPI buses are not shown.}
     \label{fig:ps2_peripheral}
 \end{figure}
@@ -411,7 +411,7 @@ The peripheral exposes its control, status, and data registers as packets exchan
 
 \begin{figure}
     \centering
-    \includegraphics[width=.8\linewidth]{gfx/display_peripheral.eps}
+    \includegraphics[width=.8\linewidth]{../gfx/display_peripheral.eps}
     \caption{Display peripheral design. The module circularly displays an UART character stream on a set of 7-segment displays.}
     \label{fig:disp_peripheral}
 \end{figure}
@@ -422,7 +422,7 @@ The design, shown in~\cref{fig:disp_peripheral}, makes use of a custom UART rece
 \subsubsection{UAR(T) Core}
 
 \begin{listing}
-\inputminted{c}{code/uart_RX.asm}
+\inputminted{c}{../code/uart_RX.asm}
 \caption{Pseudocode of the asynchronous receive operation for the ASM design metodology}
 \label{lst:uart}
 \end{listing}
@@ -518,7 +518,7 @@ In addition, the phase current may exceptionally increase above the chosen peak 
 
 \rotatebox{90}{
     \begin{minipage}{.85\textheight}
-        \includegraphics[width=\textwidth]{gfx/ps2_asm.eps}
+        \includegraphics[width=\textwidth]{../gfx/ps2_asm.eps}
         \captionof{figure}{PS/2 controller detailed ASM chart}
         \label{fig:ps2_asm}
     \end{minipage}
@@ -526,7 +526,7 @@ In addition, the phase current may exceptionally increase above the chosen peak 
 
 \rotatebox{90}{
     \begin{minipage}{.85\textheight}
-        \includegraphics[width=\linewidth]{gfx/ps2_dp.eps}
+        \includegraphics[width=\linewidth]{../gfx/ps2_dp.eps}
         \captionof{figure}{PS/2 controller data path}
         \label{fig:ps2_dp} 
     \end{minipage}
@@ -536,7 +536,7 @@ In addition, the phase current may exceptionally increase above the chosen peak 
 \section{Show-Ahead Single-Clock FIFO}\label{apx:fifo}
 
 \begin{center}
-    \includegraphics[width=.7\linewidth]{gfx/fifo.eps}
+    \includegraphics[width=.7\linewidth]{../gfx/fifo.eps}
     \captionof{figure}{Show-ahead single-clock FIFO design}
     \label{fig:fifo}
 \end{center}
@@ -545,7 +545,7 @@ In addition, the phase current may exceptionally increase above the chosen peak 
 
 \begin{figure}[h!]
     \centering
-    \includegraphics[width=\linewidth]{gfx/spi_slave.eps}
+    \includegraphics[width=\linewidth]{../gfx/spi_slave.eps}
     \caption{SPI slave controller}
     \label{fig:spi_slave}
 \end{figure}
@@ -553,10 +553,10 @@ In addition, the phase current may exceptionally increase above the chosen peak 
 \begin{figure}[h!]
     \centering
     \subfloat[][\qty{4}{\bit} transmission, CPOL = 0, CPHA = 0]{
-        \includegraphics[width=.8\linewidth]{gfx/spi_timing_cpha0.eps}
+        \includegraphics[width=.8\linewidth]{../gfx/spi_timing_cpha0.eps}
     }\\
     \subfloat[][\qty{4}{\bit} transmission, CPOL = 0, CPHA = 1]{
-        \includegraphics[width=.8\linewidth]{gfx/spi_timing_cpha1.eps}
+        \includegraphics[width=.8\linewidth]{../gfx/spi_timing_cpha1.eps}
     }
     \caption{Manual timing analysis for the SPI slave controller}
     \label{fig:spi_timing}
@@ -568,10 +568,10 @@ In addition, the phase current may exceptionally increase above the chosen peak 
 \begin{figure}[h!]
     \centering
     \subfloat[][Datapath]{
-        \includegraphics[width=\linewidth]{gfx/uart_rx_dp.eps}
+        \includegraphics[width=\linewidth]{../gfx/uart_rx_dp.eps}
     }\\
     \subfloat[][ASM detailed chart]{
-        \includegraphics[width=.45\linewidth]{gfx/uart_rx_asm.eps}
+        \includegraphics[width=.45\linewidth]{../gfx/uart_rx_asm.eps}
     }
     \caption{UART receiver-only core design}
     \label{fig:uart}
