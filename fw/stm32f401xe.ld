@@ -124,7 +124,7 @@ SECTIONS
   /* remaining ram is shared for stack and heap use
    * heap/stack collisions are detected dynamically, with no __heap_limit to honour
    *
-   *   - heap: ascending, from __heap_base
+   *   - heap: ascending, from end
    *
    *   - stack: full-descending, from __stack_base
    *     single main stack, used in Thread and Handler modes
