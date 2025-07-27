@@ -20,8 +20,8 @@ struct OFile {
 };
 
 class IFile {
- public:
-  virtual ~IFile() = default;
+public:
+  virtual ~IFile() = 0;
 
   virtual int open([[maybe_unused]] OFile &ofile) { return -ENOSYS; }
   virtual int close([[maybe_unused]] OFile &ofile) { return -ENOSYS; }
@@ -43,9 +43,8 @@ class IFile {
     return -ENOSYS;
   }
   virtual __poll_t poll([[maybe_unused]] OFile &ofile) { return -ENOSYS; }
-
- protected:
-  IFile() = default;
 };
+
+inline IFile::~IFile() {}
 
 #endif  // IFILE_H
