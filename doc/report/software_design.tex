@@ -1,0 +1,180 @@
+\section{Software Design}\label{sec:sw_design}
+
+Prototyping with STM32 microcontrollers is facilitated by the STM32Cube project, which aims to simplify development by providing a comprehensive embedded software platform for each STM32 series. This software kit is complemented by the STM32CubeMX tool~\cite{cubemx}, which enables the graphical configuration of the peripherals and the clock tree of the microcontroller, as well as the automatic generation of the corresponding initialization code in the C language.
+
+Given the opportunity to gain a deeper understanding of the tools involved in the cross-platform build process, but also to achieve greater control and flexibility over the firmware architecture, the software project is structured from scratch using CMake, without relying on STM32CubeMX. The details of the buildsystem are discussed in~\cref{subsec:buildsys}.
+
+To benefit from the object-oriented and generic programming paradigms, the firmware is developed in \cpp. The software architecture follows a bare metal yet layered design, with a clear separation between virtualized hardware resources and application logic. Depending on the resource, the virtualization is implemented in one of two ways:
+\begin{itemize}
+    \item As an object, with public methods directly invoked by the application. 
+    \item As a file, manipulated through I/O library functions or system calls.  
+\end{itemize}
+This latter approach is typical of UNIX-like systems, where special files are interfaces to device drivers, and the \ac{vfs} makes the association between the low-level operations invoked internally by file-related system calls and their implementation in the drivers. Accordingly, the firmware includes a custom implementation of a minimal virtual file system, which is presented in~\cref{subsec:files}. The device drivers and the simpler objects abstracting hardware resources are covered in~\cref{subsec:vdev}.
+
+The firmware also relies on the following generic abstraction layers:
+\begin{itemize}
+    \item The \acsu{cmsis} Core(M) component, which provides a standardized API for all Arm Cortex-M processor cores. It consists of two complementary parts:
+    \begin{itemize}
+        \item The Core(M) Standard, delivered as a set of vendor-independent C header files directly by Arm. It declares the core exception vectors and defines the functions for accessing core and core peripheral registers, special CPU instructions, and the SIMD instructions.
+
+        \item The Core(M) device, developed by the silicon vendor, in this case, STMicroelectronics. It declares interrupt vectors and defines the functions for startup and system configuration.
+
+        Note that the startup assembly code provided by STMicroelectronics is not used in this project; it is replaced by a \cpp version tailored to a custom linker script.
+    \end{itemize}
+
+    \item The STM32Cube \ac{ll} drivers~\cite{UM1725}, which offer a lightweight and portable C abstraction to operate directly on memory-mapped peripheral registers. Whenever convenient, this abstraction is extended in the project with utility functions at the same abstraction level, organized by peripheral in dedicated namespaces (e.g., \icpp{dma::}, \icpp{exti::}, \icpp{flash::}).
+
+    \item The newlib nano and GNU standard \cpp libraries. Newlib nano is a size-optimized variant of newlib, an ANSI C standard library implementation intended for use on embedded systems; it is prebuilt and distributed with the Arm GNU Toolchain.
+\end{itemize}
+
+\subsection{The Buildsystem}\label{subsec:buildsys}
+
+CMake acts as a meta-build tool that translates an abstract buildsystem written in the CMake language into configuration files for the native build tool of the host platform.
+To support cross-compilation, CMake is told about the target platform via a toolchain file. For this project, this is found split into:
+\begin{description}
+    \item[\itxt{arm-none-eabi.cmake}] It provides basic configuration settings for an AArch32 bare metal target. It establishes the cross-compilation environment by automatically locating the Arm GNU Toolchain installation in the host platform and defines compiler and linker options optimized for embedded development.
+    In addition, it introduces interface targets corresponding to different C/\cpp runtime variants: 
+    \begin{itemize}
+        \item \itxt{ARM::FreeStanding} for standalone applications which do not use the standard startup files and libraries.
+        \item \itxt{ARM::NoSys} for bare metal applications to weakly link system calls with stubs that implement graceful failure.
+        \item \itxt{ARM::Newlib} for linking with newlib C and GNU \cpp standard libraries.
+        \item \itxt{ARM::Nano}, \itxt{ARM::Nano::FloatPrint}, \itxt{ARM::Nano::FloatScan} to refine the size-optimizations of the newlib C standard library being linked.
+    \end{itemize}
+
+    \item[\itxt{armv7em-hard-fpv4sp.cmake}] It specializes the generic configuration of AArch32 bare metal targets for the Armv7-M architecture profile, also enabling the \ac{dsp} and single-precision \ac{fp} extensions. The settings are encapsulated in the interface target \itxt{ARM::V7EM-HARD-FPV4SP}.
+\end{description}
+
+\begin{listing}
+\begin{minted}{text}
+MEMORY
+{
+  FLASH (rx)  : ORIGIN = 0x08000000, LENGTH = 16K*4 + 64K + 128K*2
+  NVS   (w!x) : ORIGIN = 0x08060000, LENGTH = 128K
+  RAM   (w!x) : ORIGIN = 0x20000000, LENGTH = 96K
+}
+\end{minted}
+\caption{Location and size of the memory blocks available in the \mcu target, described in the linker command language.}
+\label{lst:ld_script}
+\end{listing}
+    
+At the top level, the \itxt{CMakeLists.txt} configures project-specific settings. It loads the toolchain file, specifies the linker script, and collects the project sources and the external libraries to link with.
+The linker script is a key component of the build process, as it describes how the sections in the input object files are mapped into the output executable file, and what its memory layout is.
+The \mcu microcontroller is equipped with \qty{96}{\kibi\byte} of static RAM and \qty{512}{\kibi\byte} of NOR flash memory, which is partitioned in eight erasable sectors as follows: four \qty{16}{\kibi\byte} sectors, one \qty{64}{\kibi\byte} sector, and three \qty{128}{\kibi\byte} sectors. To allow for the non-volatile retention of the movement pattern, the load script reserves a dedicated memory region matching the last \qty{128}{\kibi\byte} flash sector, as shown in~\cref{lst:ld_script}.
+
+The linker script is also tightly connected to the startup file. On system reset, the vector table is expected at address 0x00000000, with the stack pointer reset value in its first entry. The linker ensures that this placement is satisfied and provides the stack pointer reset value, and several other addresses referenced by the code, by means of symbol definitions. Specifically, the linker script manages all the space left in the SRAM region as a shared ascending-heap/descending-stack: the start address of the region initializes the variable used to track the top of the heap in the \icpp{_sbrk()} system call, which handles heap allocation; whereas the end address of the region is put in the first vector table entry.
+Other symbols are referenced while setting up the runtime context: the \icpp{Reset_Handler()} initializes the \itxt{data} segment in the SRAM by copying from the flash, according to the addresses provided by the linker; similarly, the C/\cpp initialization code makes use of these addresses to clear the \itxt{bss} segment, and to locate the initialization and de-initialization routines.
+
+\subsection{Virtual File System}\label{subsec:files}
+
+In general, hiding complexity behind simple and uniform interfaces is highly desirable. In UNIX-like systems, resources are abstracted as files, allowing user applications to interact with them using the same system calls as for regular files (e.g., \icpp{open()}, \icpp{read()}, \icpp{write()}, etc.). This framework relies on the \ac{vfs}, which defines a common set of low-level operations supported by all file types. These operations are invoked internally by system calls, and dispatched to their implementation depending on the file type. In particular, for special files representing character devices, the implementation of the file operations is provided by the corresponding device driver, a C kernel module that exposes the hardware as a byte stream, hiding its actual behavior.
+
+Given the number of peripherals behaving as character devices in the project, the firmware implements a lightweight abstraction layer to support file-related system calls. This is achieved through the \icpp{IFile} and \icpp{FileManager} classes.
+\begin{description}
+    \item[\icpp{class IFile}] It is the abstract base class that defines the interface to operate on files. A device driver is thus a derived class that overrides the supported operations; by default, all operations are implemented in \icpp{IFile} to return the error code \icpp{-ENOSYS}.
+    
+    \item[\icpp{class FileManager}] It implements relevant file system services using the data structures illustrated in~\cref{fig:fm_datastr}.
+    Special files are represented as \icpp{Node} objects, namely links between a file name and a driver object. The full list of special files is specified at compile time via the file manager constructor, which forwards it to initialize the node table member, as shown in~\cref{fig:node_table}.
+    The open file table tracks open files at run time. As depicted in~\cref{fig:ofile_table}, each entry of this data structure holds a pointer to a node along with state data; file descriptors index the open file table and are considered free when the corresponding entries hold no valid node pointer.
+    
+    \begin{figure}
+      \centering
+      \subfloat[][Compile-time table of nodes: each entry links the name of the file representing a character device to its corresponding driver.\label{fig:node_table}]{
+        \includegraphics[width=0.45\linewidth]{../gfx/NodeTable.eps}
+      }
+      \qquad
+      \subfloat[][Run-time table of open files, indexed by file descriptors: an open file entry holds a pointer to the associated node and some state data.\label{fig:ofile_table}]{
+        \includegraphics[width=0.45\linewidth]{../gfx/OFileTable.eps}
+      }
+      \caption{\icpp{FileManager} data members}
+      \label{fig:fm_datastr}
+    \end{figure}
+    
+    The file system services roughly follow POSIX semantics:
+    \begin{itemize}
+        \item \icpp{open()} performs name resolution through the node table to locate the associated node object. It then allocates the lowest, non-reserved file descriptor shown free in the open file table and initializes the corresponding open file table entry with the address of the node, as well as the access mode and the flags passed as arguments. Finally, the driver implementation of the operation is invoked via the node object.
+
+        \item \icpp{close()} reverses the actions of \icpp{open()}, provided that the file descriptor identifies an open file. The driver implementation of the operation is invoked via the node pointer, which is retrieved in the open file table entry indexed by the file descriptor. Afterward, the file descriptor is released by invalidating the node pointer.
+
+        \item \icpp{lseek()}, \icpp{read()}, and \icpp{write()} follow a similar pattern: if the file descriptor refers to an open file, the corresponding driver operation is invoked via the node pointer from the open file table.
+        The only exception is that \icpp{read()} and \icpp{write()} check that the access mode specified when opening the file is compatible with the requested operation.
+
+        \item \icpp{select()} enables monitoring multiple file descriptors for readiness to perform an I/O operation without blocking.
+        Internally, for each monitored file descriptor referring to an open file, the ready state is questioned with the driver \icpp{poll()} operation, invoked via the node pointer from the open file table.
+    \end{itemize}
+\end{description}
+
+\subsection{Virtualized Resources}\label{subsec:vdev}
+
+The firmware follows two approaches when dealing with hardware resources:
+\begin{itemize}
+    \item Behavior close to microcontroller peripherals capabilities is abstracted through \cpp classes that directly expose a convenient interface of public member functions to the application code. This is discussed in~\cref{ssubsec:obj}.
+    \item Behavior of complex hardware devices that fit a byte-stream access model through file I/O library functions or system calls is abstracted through device drivers, relying on the virtual file system layer. These device drivers are presented in~\cref{ssubsec:cdev}.
+\end{itemize}
+
+\subsubsection{Object Abstractions}\label{ssubsec:obj}
+
+\paragraph{\icpp{class HwAlarm}} It transforms a free-running general-purpose timer into an interrupt-based alarm scheduler and a delay generator.
+
+The class is parameterized with the timer base address, allowing to refine its implementation at compile-time, based on the features of the chosen timer: namely, the width of the counter, and the number of independent capture/compare channels.
+The channels are abstracted as an array of \icpp{Alarm} objects, which hold the parameters representing a runnable alarm on the corresponding channel. The representation consists of: a pointer to a callback functor, which differentiates between running alarms when valid and free channels; the remaining number of repetitions, and the periodicity converted to counter ticks.
+Note that the implementation relies on the \icpp{ICallback} abstract base class to provide an interface to non-owning functor wrappers of function and member function pointers.
+
+The setup is performed by the \icpp{init()} method. It computes the prescaler to achieve the desired counter clock resolution, then it enables the interrupt request in the \ac{nvic}, and the timer in free-running mode.
+
+When the \icpp{setAlarm()} method is invoked to set up a new alarm, the caller specifies how many times it will fire, the periodicity, and the callback functor. Provided that there are free channels and that the periodicity is representable in the counter width, a free \icpp{Alarm} entry is initialized with the alarm parameters. The target compare value is computed starting from the current counter tick and is used to configure the corresponding capture/compare channel for interrupt generation on match events. When the interrupt fires and the handler starts executing, the triggered alarms are identified, their representation is updated, and lastly their callback functors are invoked for execution.
+
+The \icpp{delay()} method provides traditional blocking delays, capable of exceeding the counter reload period. This is implemented through a polling loop that accumulates the elapsed time since function invocation, and compares it against the target delay.
+
+\paragraph{\icpp{class PushButton}} It implements an interrupt-based push button handler, with debouncing logic and short/long press detection.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=.5\linewidth]{../gfx/PushButton_fsm.eps}
+    \caption{\icpp{PushButton} internal FSM for an active low push button.}
+    \label{fig:pb_fsm}
+\end{figure}
+
+The class behavior follows the FSM illustrated in~\cref{fig:pb_fsm}, where the state transitions are driven by both external edge-sensitive interrupts and alarm timeouts. 
+The application is supposed to query the button state with the \icpp{shortPress()} and \icpp{longPress()} methods, which are non-blocking and return \icpp{true} when the corresponding gesture is detected.
+
+\paragraph{\icpp{class BStepper}} It generates the waveforms required to drive the windings terminals of a bipolar stepper motor, supporting both full-step and half-step modes. This is achieved with minimal CPU overhead by delegating the transfer of precomputed bit patterns onto the GPIO port via a DMA controller, synchronized by the advanced hardware timer.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=.35\linewidth]{../gfx/Translator_states.eps}
+    \caption{Bipolar motor phase states for \acs{cw} and \acs{ccw} rotations; the dashed states are skipped in full-step mode.}
+    \label{fig:bsteps}
+\end{figure}
+
+Provided that the windings terminals belong to the same GPIO port, a bit pattern can be fully represented as a \ac{bsrr} mask on \qty{32}{\bit}. Given the motor phase states shown in~\cref{fig:bsteps}, the \icpp{Translator} class generates four arrays of bit patterns corresponding to \ac{cw} and \ac{ccw} driving sequences in half-step and full-step modes.
+While the half-step and full-step sequences consist of eight and four states respectively, the corresponding bit pattern arrays are twice as long. This redundant data simplifies the DMA transfer, which occurs from a memory region handled as a circular buffer targeting the GPIO \ac{bsrr}. This is because the \icpp{Translator} class tracks the motor phase state as an index within the half-step sequence, ranging from \numrange{0}{7}. Without this redundancy, locating the start address of the circular buffer by simply indexing the masks arrays with a state number for half-step movements, and half that value for full-step movements, could result in out-of-bounds accesses.
+
+The initializations of GPIO pins, DMA controller, advanced timer, and \ac{nvic} are performed by the \icpp{init()} method. The advanced timer is configured in up-counting mode, with overflows as the only source of \acp{uev}.
+
+Motor movements are initiated with the \icpp{rotate()} method and require no further intervention from the CPU, except when the number of steps minus one does not fit in the \ac{rcr} of the advanced timer.
+As a preliminary step, the \icpp{calcTimeBase()} method determines the values for the prescaler and auto-reload registers, such that the reload period matches the step duration, and the counter resolution is numerically lowest. That is
+\[
+    \pqty*{\text{PSC}+1}\,\pqty*{\text{ARR}+1} = \nint*{{f_\text{PSC}}\;T_\text{s}}
+\]
+where the step duration $T_\text{s}$ is expressed as
+\[
+    T_\text{s} = \frac{\qty{60}{\s\per\minute}}{N\;\omega_\text{rpm}}
+\]
+with $N$ being the motor resolution in steps per revolution, and $\omega_{\text{rpm}}$ the rotational frequency in revolutions per minute.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\linewidth]{../gfx/BStepper_run.eps}
+    \caption{\icpp{BStepper::rotate()} execution diagram for the simpler case when the number of steps fits the \acs{rcr}. Starting from the motor phase state S0, the motor takes five full steps in \acs{ccw} direction.}
+    \label{fig:bstep_run}
+\end{figure}
+
+Considering the simpler case when the number of steps minus one fits the \ac{rcr}, the core logic is the following.
+The \ac{rcr} is forcefully loaded with a software \ac{uev} and the counter is configured in one pulse mode.
+The \icpp{Translator::advance()} method updates the internal motor phase state to reflect the one at the end of the movement. In addition, it locates the start address of the circular buffer with the precomputed sequence of \ac{bsrr} masks, which is used to reconfigure the DMA stream source. The last configuration step determines when to generate the DMA requests: one capture/compare channel of the advanced timer is configured to fire the requests on match events, with a compare value equal to the auto-reload register. Finally, the counter is enabled: as an example of the resulting execution diagram, see~\cref{fig:bstep_run}. 
+
+If this approach is not feasible, the \ac{rcr} is set to its maximum value and the hardware-counted repetitions are supplemented with software-counted ones (namely, \ac{rcr} reload events). Except for the corner case where exactly one software repetition must be counted, this is handled by starting the advance timer with the one pulse mode disabled. It is configured such that, upon counter overflow and \ac{rcr} reload, the \ac{uev} generates an interrupt. The handler then updates the software repetitions count and, in the last software-counted cycle, either preloads the \ac{rcr} or directly switches the counter to one pulse mode. In the former case, at the end of the software repetitions count, the counter is switched to one pulse mode as well.
+
+\subsubsection{Device Drivers}\label{ssubsec:cdev}
+
+\subsection{Main Application}

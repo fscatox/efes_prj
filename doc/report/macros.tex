@@ -26,6 +26,7 @@
 \DeclarePairedDelimiter{\avg}{\langle}{\rangle}
 \DeclarePairedDelimiter{\eval}{.}{\rvert} % to be used only as \eval*
 \DeclarePairedDelimiter{\peval}{\lparen}{\rvert}
+\DeclarePairedDelimiter{\nint}\lfloor\rceil
 
 % ** Vector notation
 \newcommand{\va}[1]{\vv{\mathbf{#1}}} % vector arrow
@@ -46,3 +47,14 @@
 % ** Unit of measurement
 \DeclareSIUnit{\rpm}{rpm}
 \DeclareSIUnit{\ppm}{ppm}
+
+% ** Programming
+\newcommand\cpp{C\nolinebreak[4]\hspace{-.05em}\raisebox{.4ex}{\relsize{-3}{\textbf{++}}}\xspace}
+
+%%
+%% Project-specific
+%%
+\newcommand{\mcu}{STM32F401xE\xspace}
+
+\newcommand{\itxt}[1]{\mintinline{text}|#1|}
+\newcommand{\icpp}[1]{\mintinline{cpp}|#1|}
