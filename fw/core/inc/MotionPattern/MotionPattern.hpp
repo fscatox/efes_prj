@@ -32,10 +32,10 @@ public:
   bool empty() const;
 
   void clear();
-  const MotionSegment *emplaceBack(BStepper::SpeedType milli_rev_per_minute,
+  const MotionSegment *pushBack(BStepper::SpeedType milli_rev_per_minute,
                                    BStepper::StepCountType steps,
                                    BStepper::Direction direction);
-  const MotionSegment *emplaceBack(const MotionSegment &ms);
+  const MotionSegment *pushBack(const MotionSegment &ms);
 
 private:
   enum FlashChunkAttribute : uint8_t {

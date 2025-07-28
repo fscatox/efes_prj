@@ -269,7 +269,7 @@ static void systemClockConfig();
                      rpm_ip, rpm_fp, angle_ip, angle_fp);
 
               /* Commit to NVS */
-              if (!mp.emplaceBack(ms))
+              if (!mp.pushBack(ms))
                 PRINTE("Failed to commit motion segment to NVS");
 
             } else {

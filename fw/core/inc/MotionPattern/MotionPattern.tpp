@@ -133,7 +133,7 @@ void MotionPattern<NMAX_MOTION_SEGMENTS>::clear() {
 }
 
 template <size_t NMAX_MOTION_SEGMENTS>
-auto MotionPattern<NMAX_MOTION_SEGMENTS>::emplaceBack(
+auto MotionPattern<NMAX_MOTION_SEGMENTS>::pushBack(
     BStepper::SpeedType milli_rev_per_minute, BStepper::StepCountType steps,
     BStepper::Direction direction) -> const MotionSegment * {
 
@@ -176,9 +176,9 @@ auto MotionPattern<NMAX_MOTION_SEGMENTS>::emplaceBack(
 }
 
 template <size_t NMAX_MOTION_SEGMENTS>
-auto MotionPattern<NMAX_MOTION_SEGMENTS>::emplaceBack(
+auto MotionPattern<NMAX_MOTION_SEGMENTS>::pushBack(
     const MotionSegment &ms) -> const MotionSegment * {
-  return emplaceBack(ms.milli_rev_per_minute, ms.steps, ms.direction);
+  return pushBack(ms.milli_rev_per_minute, ms.steps, ms.direction);
 }
 
 #endif // MOTIONPATTERN_TPP
