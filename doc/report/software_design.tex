@@ -61,7 +61,7 @@ At the top level, the \itxt{CMakeLists.txt} configures project-specific settings
 The linker script is a key component of the build process, as it describes how the sections in the input object files are mapped into the output executable file, and what its memory layout is.
 The \mcu microcontroller is equipped with \qty{96}{\kibi\byte} of static RAM and \qty{512}{\kibi\byte} of NOR flash memory, which is partitioned in eight erasable sectors as follows: four \qty{16}{\kibi\byte} sectors, one \qty{64}{\kibi\byte} sector, and three \qty{128}{\kibi\byte} sectors. To allow for the non-volatile retention of the movement pattern, the load script reserves a dedicated memory region matching the last \qty{128}{\kibi\byte} flash sector, as shown in~\cref{lst:ld_script}.
 
-The linker script is also tightly connected to the startup file. On system reset, the vector table is expected at address 0x00000000, with the stack pointer reset value in its first entry. The linker ensures that this placement is satisfied and provides the stack pointer reset value, and several other addresses referenced by the code, by means of symbol definitions. Specifically, the linker script manages all the space left in the SRAM region as a shared ascending-heap/descending-stack: the start address of the region initializes the variable used to track the top of the heap in the \icpp{_sbrk()} system call, which handles heap allocation; whereas the end address of the region is put in the first vector table entry.
+The linker script is also tightly connected to the startup file. On system reset, the vector table is expected at address \texttt{0x00000000}, with the stack pointer reset value in its first entry. The linker ensures that this placement is satisfied and provides the stack pointer reset value, and several other addresses referenced by the code, by means of symbol definitions. Specifically, the linker script manages all the space left in the SRAM region as a shared ascending-heap/descending-stack: the start address of the region initializes the variable used to track the top of the heap in the \icpp{_sbrk()} system call, which handles heap allocation; whereas the end address of the region is put in the first vector table entry.
 Other symbols are referenced while setting up the runtime context: the \icpp{Reset_Handler()} initializes the \itxt{data} segment in the SRAM by copying from the flash, according to the addresses provided by the linker; similarly, the C/\cpp initialization code makes use of these addresses to clear the \itxt{bss} segment, and to locate the initialization and de-initialization routines.
 
 \subsection{Virtual File System}\label{subsec:files}
@@ -113,7 +113,8 @@ The firmware follows two approaches when dealing with hardware resources:
 
 \subsubsection{Object Abstractions}\label{ssubsec:obj}
 
-\paragraph{\icpp{class HwAlarm}} It transforms a free-running general-purpose timer into an interrupt-based alarm scheduler and a delay generator.
+\paragraph{\mintinline[fontsize=\normalsize]{cpp}{class HwAlarm}}
+It transforms a free-running general-purpose timer into an interrupt-based alarm scheduler and a delay generator.
 
 The class is parameterized with the timer base address, allowing to refine its implementation at compile-time, based on the features of the chosen timer: namely, the width of the counter, and the number of independent capture/compare channels.
 The channels are abstracted as an array of \icpp{Alarm} objects, which hold the parameters representing a runnable alarm on the corresponding channel. The representation consists of: a pointer to a callback functor, which differentiates between running alarms when valid and free channels; the remaining number of repetitions, and the periodicity converted to counter ticks.
@@ -125,7 +126,8 @@ When the \icpp{setAlarm()} method is invoked to set up a new alarm, the caller s
 
 The \icpp{delay()} method provides traditional blocking delays, capable of exceeding the counter reload period. This is implemented through a polling loop that accumulates the elapsed time since function invocation, and compares it against the target delay.
 
-\paragraph{\icpp{class PushButton}} It implements an interrupt-based push button handler, with debouncing logic and short/long press detection.
+\paragraph{\mintinline[fontsize=\normalsize]{cpp}{class PushButton}}
+It implements an interrupt-based push button handler, with debouncing logic and short/long press detection.
 
 \begin{figure}
     \centering
@@ -137,7 +139,8 @@ The \icpp{delay()} method provides traditional blocking delays, capable of excee
 The class behavior follows the FSM illustrated in~\cref{fig:pb_fsm}, where the state transitions are driven by both external edge-sensitive interrupts and alarm timeouts. 
 The application is supposed to query the button state with the \icpp{shortPress()} and \icpp{longPress()} methods, which are non-blocking and return \icpp{true} when the corresponding gesture is detected.
 
-\paragraph{\icpp{class BStepper}} It generates the waveforms required to drive the windings terminals of a bipolar stepper motor, supporting both full-step and half-step modes. This is achieved with minimal CPU overhead by delegating the transfer of precomputed bit patterns onto the GPIO port via a DMA controller, synchronized by the advanced hardware timer.
+\paragraph{\mintinline[fontsize=\normalsize]{cpp}{class BStepper}}
+It generates the waveforms required to drive the windings terminals of a bipolar stepper motor, supporting both full-step and half-step modes. This is achieved with minimal CPU overhead by delegating the transfer of precomputed bit patterns onto the GPIO port via a DMA controller, synchronized by the advanced hardware timer.
 
 \begin{figure}
     \centering
@@ -174,6 +177,55 @@ The \ac{rcr} is forcefully loaded with a software \ac{uev} and the counter is co
 The \icpp{Translator::advance()} method updates the internal motor phase state to reflect the one at the end of the movement. In addition, it locates the start address of the circular buffer with the precomputed sequence of \ac{bsrr} masks, which is used to reconfigure the DMA stream source. The last configuration step determines when to generate the DMA requests: one capture/compare channel of the advanced timer is configured to fire the requests on match events, with a compare value equal to the auto-reload register. Finally, the counter is enabled: as an example of the resulting execution diagram, see~\cref{fig:bstep_run}. 
 
 If this approach is not feasible, the \ac{rcr} is set to its maximum value and the hardware-counted repetitions are supplemented with software-counted ones (namely, \ac{rcr} reload events). Except for the corner case where exactly one software repetition must be counted, this is handled by starting the advance timer with the one pulse mode disabled. It is configured such that, upon counter overflow and \ac{rcr} reload, the \ac{uev} generates an interrupt. The handler then updates the software repetitions count and, in the last software-counted cycle, either preloads the \ac{rcr} or directly switches the counter to one pulse mode. In the former case, at the end of the software repetitions count, the counter is switched to one pulse mode as well.
+
+\paragraph{\mintinline[fontsize=\normalsize]{cpp}{class MotionPattern}}
+
+It implements an \icpp{std::vector}-like container for \icpp{MotionSegment} objects, that is allocated in a flash sector with wear-levelling and cached in SRAM over a statically allocated array.
+
+The class is parameterized by the maximum number of elements it can contain.
+While the elements stored in the SRAM array are plain \icpp{MotionSegment} objects, the corresponding flash entries are instances of a larger type, \icpp{FlashChunkEntry}, which packs an additional byte attribute that indicates whether the entry is valid (\icpp{WRITTEN = 0xAA}) or not (\icpp{ERASED = 0xFF}).
+
+As it happens in the application, suppose that the class allocates the non-volatile container in the \qty{128}{\kibi\byte} sector starting at address \texttt{0x08060000} and that the \icpp{FlashChunkEntry} is represented on \qty{8}{\byte}. If the maximum number of elements is taken to be four, then the sector can accomodate
+\[
+    N = \frac{\qty{128}{\kibi\byte}}{\text{\icpp{sizeof(FlashChunkEntry[4])}}} = 4096
+\]
+distinct containers, hence the logical partitioning of the sector into corresponding $N$ chunks. The wear-levelling mechanism leverages this excess space to minimize the number of sector erasures. Clearing the non-volatile container does not immediately cause a sector erase; instead, it invalidates the current chunk and enables the next one available. This process continues until all chunks have been invalidated, only then the sector is erased. To illustrate, consider~\cref{fig:mp}:
+\begin{enumerate}[label=\textbf{(\alph*)}]
+    \item Starting in the erased state, the container is located in the first chunk and has a zero size; entry zero is pointed to be the written next.
+    \item After three write operations, the container is still located in the first chunk. The fourth entry is pointed to be written next.
+    \item The container is cleared: the chunk is invalidated by marking the first entry as \icpp{DIRTY = 0x00}. The container is now located in the second chunk and entry zero is pointed to be written next.
+    \item After $N-1$ clear operations, all chunks are marked dirty but the last one. A further clear operations triggers a sector erase.
+\end{enumerate}
+
+\begin{figure}
+    \centering
+    \subfloat[][Fully erased sector, empty container\label{fig:mp_ff}]{
+        \includegraphics[width=.47\linewidth]{../gfx/MotionPattern_ERASED.eps}
+    }\hfill
+    \subfloat[][First chunk in use, container size is three\label{fig:mp_wr}]{
+        \includegraphics[width=.47\linewidth]{../gfx/MotionPattern_WRITTEN.eps}
+    }\\
+    \subfloat[][First chunk marked dirty, second chunk in use, container is empty\label{fig:mp_dy}]{
+        \includegraphics[width=.47\linewidth]{../gfx/MotionPattern_DIRTY.eps}
+    }\hfill
+    \subfloat[][All chunks marked dirty but the last one in use. Clearing the container triggers a sector erase.\label{fig:mp_te}]{
+        \includegraphics[width=.47\linewidth]{../gfx/MotionPattern_TOERASE.eps}
+    }
+    \caption{\icpp{MotionPatter} logic for managing the persistence of the \icpp{MotionSegment[4]} array.}
+    \label{fig:mp}
+\end{figure}
+
+\paragraph{\mintinline[fontsize=\normalsize]{cpp}{class SpiMaster}}
+
+It provides a simple interface to communicate with multiple SPI slave devices, internally managing the select-signal generation via GPIO.
+
+During initialization, the GPIO pins assigned to \acsu{sclk}, \acsu{mosi}, and \acsu{miso} are configured in the alternate function corresponding to SPI. Since these pins are left floating when the controller is disabled, weak pull-downs are enabled. The SPI controller is configured as well, preparing for master-mode, full-duplex operation with software-managed slave selection.
+
+The communication targets are abstracted as an array of \icpp{Slave} objects, each holding the protocol parameters and the GPIO pin to be used for slave selection. Targets are dynamically registered via the class interface: provided that there are free entries in the array of targets, the \icpp{addSlave()} method computes the lowest prescaler that satisfies the requested \ac{sclk} maximum frequency, and stores the SSN pin information and protocol parameters. It returns the index of the newly registered slave, which serves as its identifier. 
+Although the STM32F401xE SPI peripheral supports only \qty{8}{\bit} and \qty{16}{\bit} transfers, the class accommodates arbitrary frame lengths up to \qty{16}{\bit} by adjusting the alignment of the transmitted and received data.
+
+Full-duplex transfers are blocking and are performed with the \icpp{txrx()} method specifying the identifier of the target slave. If the retrieved slave-dependent configuration differs from the last active one, the SPI controller is reconfigured accordingly. Note that, in this case, the configuration of weak pull-up/down resistors on \ac{sclk} is changed to match the clock polarity required by the slave. 
+Then the method asserts the SSN line, generates a pre-transfer delay via the \icpp{HwAlarm} abstraction, executes the transfer, and de-asserts the SSN line after a post-transfer delay. 
 
 \subsubsection{Device Drivers}\label{ssubsec:cdev}
 
