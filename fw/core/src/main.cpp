@@ -188,7 +188,7 @@ static void systemClockConfig();
                                ms_it->direction)) {
             if (++ms_it == mp.end()) ms_it = mp.begin();
           }
-        } while (!Push_Button().shortPress());
+        } while (!(Push_Button().shortPress() || Push_Button().longPress()));
 
         Stepper().disable();
         PRINTD("Stopped movement pattern execution");
