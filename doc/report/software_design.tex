@@ -108,7 +108,10 @@ Given the number of peripherals behaving as character devices in the project, th
 The firmware follows two approaches when dealing with hardware resources:
 \begin{itemize}
     \item Behavior close to microcontroller peripherals capabilities is abstracted through \cpp classes that directly expose a convenient interface of public member functions to the application code. This is discussed in~\cref{ssubsec:obj}.
-    \item Behavior of complex hardware devices that fit a byte-stream access model through file I/O library functions or system calls is abstracted through device drivers, relying on the virtual file system layer. These device drivers are presented in~\cref{ssubsec:cdev}.
+    
+    \item Behavior of complex hardware devices that fit a byte-stream access model is abstracted through device drivers, relying on the virtual file system layer.
+    Note that, in all cases, device parameters are not manipulated through \icpp{ioctl()} calls, but directly with the methods exposed by the drivers.
+    The device drivers are presented in~\cref{ssubsec:cdev}.
 \end{itemize}
 
 \subsubsection{Object Abstractions}\label{ssubsec:obj}
@@ -131,12 +134,12 @@ It implements an interrupt-based push button handler, with debouncing logic and 
 
 \begin{figure}
     \centering
-    \includegraphics[width=.5\linewidth]{../gfx/PushButton_fsm.eps}
-    \caption{\icpp{PushButton} internal FSM for an active low push button.}
+    \includegraphics[width=.45\linewidth]{../gfx/PushButton_fsm.eps}
+    \caption{\icpp{PushButton} internal FSM for an active low push button}
     \label{fig:pb_fsm}
 \end{figure}
 
-The class behavior follows the FSM illustrated in~\cref{fig:pb_fsm}, where the state transitions are driven by both external edge-sensitive interrupts and alarm timeouts. 
+The class behavior follows the FSM illustrated in~\cref{fig:pb_fsm}, where the key state transitions are driven either by external edge-sensitive interrupts or by alarm timeouts. 
 The application is supposed to query the button state with the \icpp{shortPress()} and \icpp{longPress()} methods, which are non-blocking and return \icpp{true} when the corresponding gesture is detected.
 
 \paragraph{\mintinline[fontsize=\normalsize]{cpp}{class BStepper}}
@@ -222,11 +225,116 @@ It provides a simple interface to communicate with multiple SPI slave devices, i
 During initialization, the GPIO pins assigned to \acsu{sclk}, \acsu{mosi}, and \acsu{miso} are configured in the alternate function corresponding to SPI. Since these pins are left floating when the controller is disabled, weak pull-downs are enabled. The SPI controller is configured as well, preparing for master-mode, full-duplex operation with software-managed slave selection.
 
 The communication targets are abstracted as an array of \icpp{Slave} objects, each holding the protocol parameters and the GPIO pin to be used for slave selection. Targets are dynamically registered via the class interface: provided that there are free entries in the array of targets, the \icpp{addSlave()} method computes the lowest prescaler that satisfies the requested \ac{sclk} maximum frequency, and stores the SSN pin information and protocol parameters. It returns the index of the newly registered slave, which serves as its identifier. 
-Although the STM32F401xE SPI peripheral supports only \qty{8}{\bit} and \qty{16}{\bit} transfers, the class accommodates arbitrary frame lengths up to \qty{16}{\bit} by adjusting the alignment of the transmitted and received data.
+Although the \mcu SPI peripheral supports only \qty{8}{\bit} and \qty{16}{\bit} transfers, the class accommodates arbitrary frame lengths up to \qty{16}{\bit} by adjusting the alignment of the transmitted and received data.
 
 Full-duplex transfers are blocking and are performed with the \icpp{txrx()} method specifying the identifier of the target slave. If the retrieved slave-dependent configuration differs from the last active one, the SPI controller is reconfigured accordingly. Note that, in this case, the configuration of weak pull-up/down resistors on \ac{sclk} is changed to match the clock polarity required by the slave. 
 Then the method asserts the SSN line, generates a pre-transfer delay via the \icpp{HwAlarm} abstraction, executes the transfer, and de-asserts the SSN line after a post-transfer delay. 
 
 \subsubsection{Device Drivers}\label{ssubsec:cdev}
 
+\paragraph{\mintinline[fontsize=\normalsize]{cpp}{class UartTx}}
+
+It is a lightweight driver for the USART peripheral, implementing DMA-based UART transmission in blocking or non-blocking fashion.
+
+The driver object is configured directly through its public methods, which includes assigning a GPIO pin, a DMA stream, and protocol parameters like frame settings and baud rate. Note that the character payload has a fixed length of \qty{8}{\bit}.
+
+The initialization of the underlying peripherals is performed when opening the device file, which supports only the write mode. The DMA stream is prepared for a memory-to-peripheral direct byte transfer: the source address points to the start of the characters buffer and is auto-incremented by the DMA controller; the destination is fixed and corresponds to the data register of the USART peripheral. On the USART side, following the configuration of the protocol parameters, the DMA transmission mode is enabled.
+
+The implementation of the \icpp{write()} operation is trivial. If there is an ongoing transfer, the open-file flags are queried to determine if it is acceptable to block while waiting for it to complete. Upon completion, the user data buffer is copied locally, the DMA stream is enabled, and the transmission continues with no further intervention from the CPU.
+
+\paragraph{\mintinline[fontsize=\normalsize]{cpp}{class SSegDisplay}}
+
+It is the driver for the display peripheral presented in~\cref{subsec:sseg}, implemented by extending the generic capabilities of the \icpp{UartTx} base class with functionalities such as character re-encoding, text buffering, and interrupt-based text scrolling.
+
+In addition to the configuration of the base driver object, the method \icpp{setDisplay()} allows to configure the number of 7-segment displays composing the peripheral screen, the minimum number of times a string that does not fit on the screen should be scrolled, and the scrolling speed.
+The alphabet supported by the peripheral is built at compile time via the template function \icpp{fmtChar()} and made available for the re-encoding of an ASCII stream through the private method \icpp{encode()}.
+
+Opening the device file performs the same initialization described for the base class, with the only peculiarity that truncation forces the driver to transmit a \icpp{CLEAR} command to the peripheral.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=.6\linewidth]{../gfx/SSegDisplay_fsm.eps}
+    \caption{\icpp{SSegDisplay} internal FSM for text scrolling}
+    \label{fig:sseg_fsm}
+\end{figure}
+
+At the core of the \icpp{write()} method there is the agreement that the newline character indicates the termination of a string to be transmitted. It is expected that the text may exceed the screen length, hence the implementation of an interrupt-based mechanism to handle the scrolling of the displayed text. This is achieved in collaboration with the \icpp{HwAlarm} class, following the FSM illustrated in~\cref{fig:sseg_fsm}, where the state transitions are driven either by application logic or by alarm timeouts.
+
+It is worth noting that when the driver is scrolling a string, the alarm callback is executed by the \icpp{HwAlarm} object within an interrupt handler. Since the UART transfer is synchronized via DMA, the amount of processing required in CPU Handler Mode is minimal. This holds true except when the last contiguous substring has been transmitted to the peripheral, in which case a \icpp{std::rotate()} operation is performed to manipulate the underlying character buffer and produce the effect of continuous scrolling.
+
+\paragraph{\mintinline[fontsize=\normalsize]{cpp}{class LTC2308}}
+
+It is a full driver for the ADC peripheral discussed in~\cref{subsec:adc}, implemented according to the timing diagrams and the applications information found in the datasheet~\cite{ltc2308}.
+
+The class collaborates with the \icpp{SpiMaster}, in charge of the low-level details of SPI communication, and with the \icpp{HwAlarm}, that generates the delays required to satisfy timing constraints.
+The configuration of the driver object includes specifying the protocol-related parameters required for registering a slave with the \icpp{SpiMaster}: these are the \ac{convst} pin, which triggers both the start of the analog-to-digital conversion process and the start of the SPI transfer, and the maximum \icpp{sclk} frequency.
+In addition, the \icpp{setOptions()} method internally generates the programming word that configures the actual ADC peripheral, based on the input range type (unipolar or bipolar), the input stage type (single-ended or differential), the multiplexer channels, and the power management mode.
+
+Opening the device file has the effect of registering the slave target with the \icpp{SpiMaster} and transmitting the programming word to initialize the ADC peripheral with the selected options. 
+The \icpp{read()} method implements the logic for acquiring a stream of \qty{12}{\bit} samples from the ADC peripheral and transforming it into a binary stream of \qty{16}{\bit} signed or unsigned integers, according to the selected options.
+
+\paragraph{\mintinline[fontsize=\normalsize]{cpp}{class Keyboard}}
+
+It is a full driver for PS/2-compatible keyboards using scan code set 2, interfaced through the custom PS/2-to-SPI peripheral described in~\cref{ssubsec:ps22spi}.
+
+Communication with the SPI slave and timing synchronization are implemented similarly to the \icpp{LTC2308} driver, relying on the \icpp{SpiMaster} and \icpp{HwAlarm} abstractions. The \icpp{SpiMaster::txrx()} function is further abstracted with private helper methods, tailored to the behavior of the peripheral device:
+\begin{description}
+    \item[\icpp{_pollTxRx()}] Sends a command to the peripheral and polls for an acknowledgment within a bounded number of SPI cycles. This approach is necessary because: first, command execution requires time; second, the full-duplex nature of the transfer implies that data received from the slave cannot represent the response to the command being sent concurrently.
+
+    \item[\icpp{_trySet()}] Builds upon \icpp{_pollTxRx()} to implement the transmission logic of the PS/2 \textit{Set/Reset Status Indicator} command to the keyboard, which consists of a command byte followed by an argument byte. First, an SPI command programs the PS/2 controller in transmit mode to send \texttt{0xED}; the controller is then reconfigured to receive the keyboard's acknowledgment. The process is repeated to transmit the argument byte.
+\end{description}
+
+Opening the device file registers the slave with the \icpp{SpiMaster} and issues a reset sequence: inside the peripheral, the PS/2 controller is disabled and re-enabled, and the FIFO buffer is flushed. Then, \icpp{_trySet()} is invoked to turn off both the Num Lock and Caps Lock indicators.
+
+The \icpp{poll()} operation must determine whether a subsequent \icpp{read()} call would return a character, ideally without blocking. In practice, one blocking SPI transfer is performed via the helper method \icpp{_tryRead()} to check if a scan code is available for processing. Note, however, that the presence of a scan code does not guarantee that a character is ready to be returned. This is where the parsing machine comes into play. It consists of:
+\begin{description}
+    \item[\icpp{class ScanCodeParser}] Implements the logic for parsing the scan codes belonging to set 2 with a FSM and a lookup table. Processing any scan code generates a \icpp{ParsedKey} object, which is differently interpreted based on its \icpp{Action} field. Some scan codes merely advance the FSM without yielding actionable information; these are represented with action \icpp{NONE}. Conversely, the \icpp{MAKE} and \icpp{BREAK} actions are paired with the layout-independent representation of the key for which the make or break code has been received; this is represented as an enumerator of \icpp{UniKey} type.
+
+    \item[\icpp{_map()}] Translates layout-independent \icpp{UniKey} keys into ASCII characters using a layout-specific lookup table, considering the current state of modifier keys (Left/Right Shift, Alt Gr, Caps Lock, and Num Lock).
+    
+    Note that while the current implementation provides the Italian lookup table, the mapping can be generalized through template parameters and specialization.
+    
+    \item [\icpp{_step()}] Overall, it implements the logic that translates scan codes into ASCII characters, returning \icpp{'\0'} when the scan code does not yield such information.
+
+    In details, the scan code is first parsed into a \icpp{ParsedKey} object. If the action is \icpp{MAKE} or \icpp{BREAK}, the associated key is processed as follows:
+    \begin{itemize}
+        \item If it corresponds to a modifier key, the internal state is updated accordingly. For Caps Lock and Num Lock, a small FSM determines whether the corresponding keyboard indicators should be updated, in which case \icpp{_trySet()} is invoked.
+        
+        \item Otherwise, only key press (corresponding to the \icpp{MAKE} action) requires processing. In this case, the \icpp{_map()} helper function is invoked.
+    \end{itemize}
+\end{description}
+Tying things together: if \icpp{_tryRead()} yields a scan code, it is processed by \icpp{_step()}, which may produce a non-zero character, which updates the internal \icpp{_peek} member. The \icpp{poll()} operation returns accordingly: a \icpp{_peek} value different from \icpp{'\0'} indicates read readiness.
+
+The \icpp{read()} function complements this behavior. If \icpp{poll()} was previously called, the \icpp{_peek} value may already contain a character. If not, and the open file flags allow blocking, a character is fetched using the helper method \icpp{_getc()}, which repeatedly calls \icpp{_tryRead()} and \icpp{_step()} until a valid character becomes available.
+
 \subsection{Main Application}
+
+The application integrates all the described abstractions to implement the theory of operation presented in~\cref{sec:theory_operation}.
+
+Device drivers and objects requiring exception handling follow the \ac{cofu} idiom, which ensures proper initialization order before the \icpp{main()} is run.
+System initialization proceeds through several phases, notably:
+\begin{itemize}
+    \item \icpp{systemClockConfig()} establishes a \qty{64}{\mega\hertz} system clock using the internal RC oscillator and the PLL. The number of wait states for flash memory access is adjusted accordingly.
+
+    \item The logging system is setup using the low-level driver \icpp{UartTx} over USART2, which is accessible through the on-board ST-LINK debugger/programmer. The standard input and standard error streams are redirected to the corresponding device file.
+
+    \item The \icpp{HwAlarm} object is constructed over the general-purpose \qty{16}{\bit} timer TIM9, which features two independent capture/compare channels. The time base is configured with a counter clock frequency of \qty{64}{\kHz}.
+
+    \item The ADC device file is opened for buffered binary reading. The buffer size is configured to \qty{16}{\bit}, so that each \icpp{read()} operation from the driver returns a complete sample.
+
+    \item The display device file is opened for line-buffered writing: due to truncation, the screen is cleared. As the newline character both flushes the buffer and triggers a transmission to the display, the number of \icpp{write()} invocations is minimized.
+\end{itemize}
+
+If all initializations are successful, the system performs a sign of life sequence by printing \textit{run...} on the peripheral display and rotating the motor shaft one full turn counterclockwise and back clockwise at \qty{25}{\rpm}.
+
+The main loop is designed following a polling scheme:
+\begin{enumerate}
+    \item Detection of \icpp{Push_Button().longPress()} is immediately handled to clear the movement pattern.
+    
+    \item Detection of \icpp{Push_Button().shortPress()} with a non-empty movement pattern is immediately handled to initiate movement pattern execution.
+    Similarly, the detection of \icpp{Push_Button().shortPress()} while executing the movement pattern immediately aborts movement pattern execution.
+    
+    \item Detection of available input from the keyboard through the \icpp{select()} system call is immediately handled to attempt acquisition of a new motion segment.
+
+    Note that keyboard input validation is not implemented using the \cpp standard regex library, which parses and compiles the regular expression pattern at runtime. Resorting to the \textit{Compile Time Regular Expressions} library significantly reduced the program image size while also improving execution speed.
+\end{enumerate}

@@ -63,7 +63,7 @@ As illustrated in the block diagram of~\cref{fig:sys}, the system comprises:
         \end{itemize}
         Furthermore, one sector of the embedded NOR flash memory is used as a non-volatile circular buffer to store the motor movement pattern, and play it on demand. The architecture of the firmware is further explained in~\cref{sec:sw_design}.
         
-        \item The L6506 inputs accept \qty{5}{\V} TTL levels, with $V_\text{IL} = \qty{0.8}{\V}$ and $V_\text{IH} = \qty{2}{\V}$. Consequently, the microcontroller can reliably drive them, without requiring any additional translation logic. During reset, the enable signal is pulled down with an external resistor and forces a motor brake.
+        \item The L6506 inputs accept \qty{5}{\V} TTL levels, with $V_\text{IL} = \qty{0.8}{\V}$ and $V_\text{IH} = \qty{2}{\V}$. Consequently, the microcontroller can reliably drive them, without requiring any additional translation logic. During reset, the enable signal is pulled down with an external resistor.
 
         \item The L298 is permanently enabled. The datasheet prescribes that the enable signals of the H-bridges are to be driven low before turning on or off the power stage, which is achieved by means of the resistive divider $(R_5,\,R_6)$. 
     \end{itemize}
@@ -127,7 +127,7 @@ The transmission is character-based and the frame comprises:
 \end{itemize}
 The timing diagram for receiving and sending data are shown in~\cref{fig:ps2_timing}.
 
-\subsubsection{PS/2 Peripheral}
+\subsubsection{PS/2 Peripheral}\label{ssubsec:ps22spi}
 
 \begin{figure}
     \centering
